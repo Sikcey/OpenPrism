@@ -1,0 +1,21 @@
+**/bin/
+**/obj/
+artifacts/
+.vs/
+*.user
+*.pfx
+vendor/*
+!vendor/egui_software_backend/
+**/target/
+src/WGTun.Native/capture*.png
+
+# Downloaded runtimes and private local configuration
+dependencies/**
+!dependencies/notices/
+!dependencies/notices/**
+*.dpapi
+*.pem
+*.key
+.env
+.env.*
+!*.example

@@ -1,0 +1,243 @@
+Routing	Маршрутизация	路由
+Rule action	Действие правила	规则操作
+Direct / bypass connection	Напрямую / без прокси	直连 / 绕过代理
+Use active connection	Использовать активное соединение	使用活动连接
+Only TCP is tested; UDP and overall reachability are not verified.	Проверяется только TCP; UDP и общая доступность не проверены.	仅测试 TCP；未验证 UDP 或整体连通性。
+Success	Успешно	成功
+Failed	Не удалось	失败
+Remove all services	Удалить все службы	移除所有服务
+Apply signed update package	Установить подписанное обновление	安装已签名更新包
+Application capture	Перехват приложений	应用流量捕获
+WGTun service, sing-box and application capture are required; remove all services removes them together.	Служба WGTun, sing-box и перехват приложений обязательны; общее удаление удаляет их вместе.	WGTun 服务、sing-box 与应用捕获组件为必需组件，可通过移除所有服务一并卸载。
+Welcome to OpenPrism	Добро пожаловать в OpenPrism	欢迎使用 OpenPrism
+Remove the WGTun service and all components installed by the application?	Удалить службу WGTun и все компоненты, установленные приложением?	移除 WGTun 服务及应用安装的所有组件？
+Not installed	Не установлено	未安装
+Explore a method and select the profile you want to use.	Изучите метод и выберите нужный профиль.	查看连接方式并选择要使用的配置。
+Other · Coming soon	Другие · Скоро	其他 · 即将推出
+Use an alternative connection method for DPI based restrictions without a VPN tunnel.	Альтернативный способ обхода DPI без VPN-туннеля.	无需 VPN 隧道，使用其他方式绕过 DPI 限制。
+Route traffic through an encrypted tunnel. Use Cloudflare WARP or import your own configuration.	Направляйте трафик через зашифрованный туннель. Используйте Cloudflare WARP или свою конфигурацию.	通过加密隧道路由流量。使用 Cloudflare WARP 或导入自己的配置。
+CONFIGURATION	КОНФИГУРАЦИЯ	配置
+Standard ByeDPI	Стандартный ByeDPI	默认 ByeDPI
+Applies DPI bypass to traffic from selected applications.	Обход DPI для трафика выбранных приложений.	对所选应用的流量使用 DPI 绕过。
+Custom WireGuard configuration	Своя конфигурация WireGuard	自定义 WireGuard 配置
+Import a .conf file for your own server.	Импортируйте файл .conf своего сервера.	导入自己服务器的 .conf 文件。
+Choose .conf file	Выбрать файл .conf	选择 .conf 文件
+Cloudflare account and connection settings are prepared automatically.	Учётная запись Cloudflare и настройки подключения создаются автоматически.	自动准备 Cloudflare 账户和连接设置。
+Account options	Параметры учётной записи	账户选项
+Press Select to apply.	Нажмите «Выбрать» для применения.	点击“选择”以应用。
+Select	Выбрать	选择
+Rules, methods and profiles cannot be changed while the engine is running. Disconnect first.	Пока движок работает, правила, методы и профили недоступны. Сначала отключитесь.	引擎运行时无法更改规则、方式或配置。请先断开连接。
+Add rule	Добавить правило	添加规则
+Choose which traffic to route.	Выберите трафик для маршрутизации.	选择要路由的流量。
+Rule name · optional	Имя правила · необязательно	规则名称 · 可选
+e.g. Home network	Например, домашняя сеть	例如：家庭网络
+IP based	По IP-адресу	基于 IP
+IP address	IP-адрес	IP 地址
+Network / CIDR	Сеть / CIDR	网络 / CIDR
+General	Общие	通用
+Startup	Запуск	启动
+Make WGTun your own.	Настройте WGTun под себя.	按需设置 WGTun。
+Application language	Язык приложения	应用语言
+Language used in the interface.	Язык интерфейса.	界面使用的语言。
+Minimize to system tray	Сворачивать в трей	最小化到系统托盘
+Keep running in the background when the window closes.	Продолжать работу в фоне при закрытии окна.	关闭窗口后继续在后台运行。
+Open WGTun when your computer starts.	Запускать WGTun при включении компьютера.	电脑启动时打开 WGTun。
+Connect automatically	Подключаться автоматически	自动连接
+Connect with the last profile when Windows starts.	Подключаться с последним профилем при запуске Windows.	Windows 启动时使用上次配置连接。
+WireGuard and DPI routing in one place.	WireGuard и маршрутизация DPI в одном приложении.	一站式 WireGuard 和 DPI 路由。
+Source code ↗	Исходный код ↗	源代码 ↗
+Report an issue ↗	Сообщить о проблеме ↗	报告问题 ↗
+Thanks to the open source projects and developers powering WGTun.	Спасибо проектам с открытым кодом и разработчикам, на которых основан WGTun.	感谢为 WGTun 提供支持的开源项目及开发者。
+Traffic routing	Маршрутизация трафика	流量路由
+DPI bypass	Обход DPI	DPI 绕过
+WARP account and profile tools	Инструменты учётных записей и профилей WARP	WARP 账户和配置工具
+User interface	Интерфейс	用户界面
+Software rendering	Программный рендеринг	软件渲染
+Changes are saved automatically	Изменения сохраняются автоматически	更改将自动保存
+Matches traffic to this IPv4 address only.	Только трафик к этому IPv4-адресу.	仅匹配发往此 IPv4 地址的流量。
+Matches traffic to this IPv6 address only.	Только трафик к этому IPv6-адресу.	仅匹配发往此 IPv6 地址的流量。
+Matches traffic to addresses in this IPv4 network.	Трафик к адресам в этой IPv4-сети.	匹配发往此 IPv4 网络的流量。
+Matches traffic to addresses in this IPv6 network.	Трафик к адресам в этой IPv6-сети.	匹配发往此 IPv6 网络的流量。
+Matches applications in the selected folder and its subfolders.	Приложения в выбранной папке и её подпапках.	匹配所选文件夹及其子文件夹中的应用。
+Edit the process name or choose an application folder.	Измените имя процесса или выберите папку приложения.	编辑进程名称或选择应用文件夹。
+Edit the executable path or choose a folder.	Измените путь к программе или выберите папку.	编辑可执行文件路径或选择文件夹。
++  Add folder	+  Добавить папку	+  添加文件夹
+Services	Службы	服务
+Logs	Журналы	日志
+System	Система	系统
+Application	Приложение	应用
+New rule	Новое правило	新规则
+Rule name	Имя правила	规则名称
+Search running and installed applications	Поиск запущенных и установленных приложений	搜索正在运行和已安装的应用
+Browse application	Выбрать приложение	选择应用
+Browse folder	Выбрать папку	选择文件夹
+Name (optional)	Имя (необязательно)	名称（可选）
+Rule type	Тип правила	规则类型
+Match value	Значение для сопоставления	匹配值
+Applications and rules	Приложения и правила	应用和规则
++  Add application or rule	+  Добавить приложение или правило	+  添加应用或规则
+Idle	Ожидание	待机
+Start setup	Начать установку	开始安装
+Add at least one enabled, validated rule.	Добавьте хотя бы одно включённое и проверенное правило.	请添加至少一条已启用且有效的规则。
+Custom DNS (optional)	Свой DNS (необязательно)	自定义 DNS（可选）
+Cancel	Отмена	取消
+Connection	Подключение	连接
+Profiles	Профили	配置
+Settings	Настройки	设置
+Preferences	Параметры	偏好设置
+Language	Язык	语言
+Turkish	Турецкий	土耳其语
+English	Английский	英语
+About	О программе	关于
+Source code	Исходный код	源代码
+Report an issue	Сообщить о проблеме	报告问题
+Credits	Благодарности	致谢
+Check for updates	Проверить обновления	检查更新
+Current version	Текущая версия	当前版本
+Latest version	Последняя версия	最新版本
+Open release	Открыть релиз	打开发布页面
+Connect	Подключить	连接
+Disconnect	Отключить	断开连接
+Connect / disconnect	Подключить / отключить	连接 / 断开
+Your network, your rules	Ваша сеть, ваши правила	你的网络，你的规则
+Your connection is under control.	Ваше подключение под контролем.	掌控你的连接。
+Working…	Выполняется…	正在处理…
+Engine is running.	Движок работает.	引擎正在运行。
+Ready to connect.	Готово к подключению.	已准备好连接。
+Connection engine active	Движок подключения активен	连接引擎已启用
+Disconnected	Отключено	已断开
+Selected profile	Выбранный профиль	已选配置
+Change	Изменить	更改
+All traffic	Весь трафик	所有流量
+Selected only	Только выбранные	仅所选项
+Selected	Выбрано	已选
+Exclude selected	Кроме выбранных	排除所选项
+Custom WireGuard profile	Свой профиль WireGuard	自定义 WireGuard 配置
+Other methods	Другие методы	其他方式
+Provider	Провайдер	提供方
+Configure	Настроить	配置
+Edit	Изменить	编辑
+Edit rule	Изменить правило	编辑规则
+Add	Добавить	添加
+Delete	Удалить	删除
+Remove	Удалить	移除
+Save	Сохранить	保存
+Back	Назад	返回
+Continue	Продолжить	继续
+Next	Далее	下一步
+Finish	Завершить	完成
+Close	Закрыть	关闭
+Initial setup	Начальная настройка	初始设置
+Welcome to WGTun	Добро пожаловать в WGTun	欢迎使用 WGTun
+Choose a connection method	Выберите метод подключения	选择连接方式
+WireGuard uses Cloudflare WARP by default. ByeDPI is an alternative method.	WireGuard по умолчанию использует Cloudflare WARP. ByeDPI — альтернативный метод.	WireGuard 默认使用 Cloudflare WARP。ByeDPI 是另一种连接方式。
+Which traffic should be routed?	Какой трафик направлять?	要路由哪些流量？
+Install required components	Установить необходимые компоненты	安装所需组件
+Setup downloads the required files automatically; Windows may request administrator permission once.	Установщик скачает нужные файлы; Windows может один раз запросить права администратора.	安装程序会自动下载所需文件；Windows 可能请求一次管理员权限。
+Service ready	Служба готова	服务已就绪
+Service installation required	Необходимо установить службу	需要安装服务
+No rules yet. Add an application, folder, or IP to get started.	Правил пока нет. Добавьте приложение, папку или IP-адрес.	尚无规则。请添加应用、文件夹或 IP 地址。
+Enable at least one rule to continue.	Включите хотя бы одно правило для продолжения.	请启用至少一条规则以继续。
+Rules	Правила	规则
+Rule selection	Выбор правил	规则选择
+Name	Имя	名称
+Type	Тип	类型
+Value	Значение	值
+Process name	Имя процесса	进程名称
+Folder path	Путь к папке	文件夹路径
+IPv4 range	Диапазон IPv4	IPv4 范围
+IPv6 range	Диапазон IPv6	IPv6 范围
+Start with Windows	Запускать с Windows	随 Windows 启动
+ByeDPI configuration	Настройка ByeDPI	ByeDPI 配置
+Strategy	Стратегия	策略
+Standard	Стандартная	默认
+DNS · optional	DNS · необязательно	DNS · 可选
+Default DNS	DNS по умолчанию	默认 DNS
+Test ByeDPI strategies on your network. Results are not applied automatically.	Проверьте стратегии ByeDPI в своей сети. Результаты не применяются автоматически.	测试适用于当前网络的 ByeDPI 策略。结果不会自动应用。
+Hosts to test	Проверяемые домены	待测域名
+Enter one hostname per line. Up to 8 hosts.	Один домен в строке. Не более 8 доменов.	每行输入一个域名，最多 8 个。
+GoodCheck scan in progress…	Идёт сканирование GoodCheck…	GoodCheck 正在扫描…
+Stop	Остановить	停止
+Scan with GoodCheck	Сканировать с GoodCheck	使用 GoodCheck 扫描
+Scan complete. Select a result and press Apply.	Сканирование завершено. Выберите результат и нажмите «Применить».	扫描完成。请选择结果并点击“应用”。
+No working strategy found for the tested hosts.	Для проверенных доменов рабочая стратегия не найдена.	未找到适用于所测域名的策略。
+Scan stopped.	Сканирование остановлено.	扫描已停止。
+Scan timed out.	Превышено время сканирования.	扫描超时。
+Disconnect before scanning.	Отключитесь перед сканированием.	扫描前请先断开连接。
+GoodCheck scan failed.	Не удалось завершить сканирование GoodCheck.	GoodCheck 扫描失败。
+Apply	Применить	应用
+Profile	Профиль	配置
+Unknown	Неизвестно	未知
+Setup required	Необходима установка	需要安装
+Ready	Готово	就绪
+Starting	Запуск	正在启动
+Stopped	Остановлено	已停止
+Repair required	Необходимо восстановление	需要修复
+Running	Работает	运行中
+Install / repair service	Установить / восстановить службу	安装 / 修复服务
+Remove service…	Удалить службу…	移除服务…
+Remove service	Удалить службу	移除服务
+Should WGTun and its managed sing-box / ByeDPI files be removed?	Удалить службу WGTun и управляемые файлы sing-box / ByeDPI?	是否移除 WGTun 服务及其管理的 sing-box / ByeDPI 文件？
+The active connection will be disconnected. Setup will be required to use it again.	Активное подключение будет разорвано. Для повторного использования нужна установка.	当前连接将断开。再次使用前需要重新安装。
+Offline preview	Автономный просмотр	离线预览
+Newest entries are shown first.	Новые записи показываются первыми.	最新日志显示在前。
+Clear	Очистить	清除
+Refresh	Обновить	刷新
+Search logs	Поиск в журналах	搜索日志
+Detailed logging	Подробные журналы	详细日志
+Setup complete. Continue from the Connection page.	Установка завершена. Продолжите на странице подключения.	安装完成。请前往连接页面继续。
+Go to Connection	К подключению	前往连接
+Engine installation required	Необходима установка движка	需要安装引擎
+Service not ready	Служба не готова	服务未就绪
+Free WARP account	Бесплатная учётная запись WARP	免费 WARP 账户
+WARP / WARP+ license key	Ключ лицензии WARP / WARP+	WARP / WARP+ 许可证密钥
+Import existing wgcf account	Импортировать учётную запись wgcf	导入现有 wgcf 账户
+License key	Ключ лицензии	许可证密钥
+Use key	Применить ключ	使用密钥
+Choose account file	Выбрать файл учётной записи	选择账户文件
+Cloudflare WARP terms of service	Условия использования Cloudflare WARP	Cloudflare WARP 服务条款
+Preparing Cloudflare account…	Подготовка учётной записи Cloudflare…	正在准备 Cloudflare 账户…
+Retry	Повторить	重试
+Cloudflare profile ready.	Профиль Cloudflare готов.	Cloudflare 配置已就绪。
+Application path	Путь к приложению	应用路径
+IPv4 address	Адрес IPv4	IPv4 地址
+IPv6 address	Адрес IPv6	IPv6 地址
+IPv4 network / CIDR	Сеть IPv4 / CIDR	IPv4 网络 / CIDR
+IPv6 network / CIDR	Сеть IPv6 / CIDR	IPv6 网络 / CIDR
+Validating…	Проверка…	正在验证…
++  Add rule	+  Добавить правило	+  添加规则
+Step	Шаг	步骤
+selected	выбрано	已选
+Changes apply on the next connection.	Изменения вступят в силу при следующем подключении.	更改将在下次连接时生效。
+Minimize to tray	Сворачивать в трей	最小化到托盘
+Service	Служба	服务
+Engine	Движок	引擎
+Install or repair the service from Services to use GoodCheck.	Для GoodCheck установите или восстановите службу в разделе «Службы».	请在“服务”页面安装或修复服务以使用 GoodCheck。
+Preparing service	Подготовка службы	正在准备服务
+Engine ready	Движок готов	引擎已就绪
+Browsers	Браузеры	浏览器
+Could not start the service operation	Не удалось запустить операцию службы	无法启动服务操作
+System tray unavailable; keeping the window open	Трей недоступен; окно остаётся открытым	系统托盘不可用；窗口将保持打开
+Offline preview: no operation performed	Автономный просмотр: действие не выполнено	离线预览：未执行任何操作
+Could not start preparing the Cloudflare account.	Не удалось начать подготовку учётной записи Cloudflare.	无法开始准备 Cloudflare 账户。
+Application path not found	Путь к приложению не найден	找不到应用路径
+Unsupported service operation	Операция службы не поддерживается	不支持此服务操作
+Could not read the service status	Не удалось получить состояние службы	无法读取服务状态
+Could not send service input	Не удалось передать данные службе	无法发送服务输入
+Could not read service progress	Не удалось получить ход выполнения	无法读取服务进度
+Service operation failed	Ошибка операции службы	服务操作失败
+Service operation timed out	Превышено время операции службы	服务操作超时
+Invalid service response	Некорректный ответ службы	服务响应无效
+Could not read service output	Не удалось прочитать вывод службы	无法读取服务输出
+Open WGTun	Открыть WGTun	打开 WGTun
+Exit	Выход	退出
+Strategy testing	Проверка стратегий	策略测试
+Engine running; internet access has not been verified.	Движок работает; доступ к интернету не проверен.	引擎正在运行；尚未验证互联网访问。
+Disconnected.	Отключено.	已断开连接。
+Installed service and engine files verified.	Установленная служба и файлы движков проверены.	已验证安装的服务和引擎文件。
+Some engine files could not be verified; repair required.	Не удалось проверить некоторые файлы движков; требуется восстановление.	部分引擎文件未通过验证；需要修复。
+WGTun service is not installed. Continue with initial setup.	Служба WGTun не установлена. Продолжите начальную настройку.	尚未安装 WGTun 服务。请继续初始设置。
+Experimental IPv4 mode. Selected traffic uses a separate relay and Zapret filter.	Экспериментальный режим IPv4. Выбранный трафик проходит через отдельный ретранслятор и фильтр Zapret.	实验性 IPv4 模式。所选流量使用独立中继和 Zapret 过滤器。
+Selected IPv6 traffic is not supported. Install or repair the service before first use.	IPv6 для выбранного трафика не поддерживается. Перед первым запуском установите или восстановите службу.	不支持所选 IPv6 流量。首次使用前请安装或修复服务。
+Install or repair the service from Services for Zapret support. The installed service is outdated or Zapret files are missing.	Для поддержки Zapret установите или восстановите службу в разделе «Службы». Установленная служба устарела или файлы Zapret отсутствуют.	请在“服务”页面安装或修复服务以支持 Zapret。已安装的服务版本过旧或缺少 Zapret 文件。
+Update service	Обновите службу	更新服务

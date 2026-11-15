@@ -1,0 +1,25 @@
+[package]
+name = "wgtun-native"
+version = "0.2.0"
+edition = "2021"
+
+[dependencies]
+eframe = { version = "0.33", default-features = false, features = ["default_fonts", "glow", "x11", "wayland"] }
+egui_software_backend = { version = "=0.0.2", default-features = false, features = ["std", "winit"] }
+serde_json = "1"
+rfd = "0.15"
+uuid = { version = "1", features = ["v4"] }
+image = { version = "0.25", default-features = false, features = ["png"] }
+
+[target.'cfg(windows)'.dependencies]
+tray-icon = { version = "0.19", default-features = false }
+winreg = "0.55"
+
+[profile.release]
+opt-level = "s"
+lto = "thin"
+codegen-units = 1
+strip = "symbols"
+
+[patch.crates-io]
+egui_software_backend = { path = "../../vendor/egui_software_backend" }

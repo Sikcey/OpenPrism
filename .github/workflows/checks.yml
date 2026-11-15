@@ -1,0 +1,37 @@
+name: Checks
+on:
+  push:
+    branches: [main]
+  pull_request:
+permissions:
+  contents: read
+jobs:
+  windows:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '10.0.x'
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Backend checks
+        shell: pwsh
+        run: |
+          dotnet run --project tests/WGTun.Checks
+          if ($LASTEXITCODE) { exit $LASTEXITCODE }
+          dotnet run --project tests/WGTun.CaptureBoundary
+          if ($LASTEXITCODE) { exit $LASTEXITCODE }
+          dotnet run --project src/WGTun.Core/Tests/WGTun.DependencyChecks.csproj
+          if ($LASTEXITCODE) { exit $LASTEXITCODE }
+          dotnet run --project src/WGTun.Service -- verify-configs artifacts/config-checks
+          if ($LASTEXITCODE) { exit $LASTEXITCODE }
+      - name: Native UI and installer fixtures
+        shell: pwsh
+        run: |
+          cargo test --locked --manifest-path src/WGTun.Native/Cargo.toml
+          if ($LASTEXITCODE) { exit $LASTEXITCODE }
+          python scripts/test-installation.py
+          if ($LASTEXITCODE) { exit $LASTEXITCODE }
