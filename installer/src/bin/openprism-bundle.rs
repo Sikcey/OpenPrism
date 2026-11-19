@@ -24,6 +24,5 @@ fn main() -> eframe::Result {
             std::process::exit(1);
         }
     };
-    let development = option_env!("OPENPRISM_INSTALLER_PUBLISHER").is_none_or(str::is_empty);
-    openprism_installer::run(package.path().to_owned(), development, false)
+    openprism_installer::run(package.path().to_owned(), false)
 }

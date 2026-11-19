@@ -187,7 +187,7 @@ struct Installer {
 }
 
 impl Installer {
-    fn new(package: PathBuf, development: bool, uninstall_only: bool) -> Self {
+    fn new(package: PathBuf, uninstall_only: bool) -> Self {
         let path = r"%LOCALAPPDATA%\OpenPrism".to_owned();
         let free_space = backend::free_bytes(&path);
         let payload_size = backend::payload_bytes(&package);
@@ -197,7 +197,6 @@ impl Installer {
             uninstall_only,
             plan: Plan {
                 package,
-                development,
                 location: PathBuf::new(),
                 byedpi: false,
                 zapret: false,
@@ -1020,7 +1019,6 @@ pub fn launch_from_executable(uninstall_only: bool) -> eframe::Result {
         .ok()
         .and_then(|path| path.parent().map(ToOwned::to_owned))
         .unwrap_or_default();
-    let development = std::env::args_os().any(|arg| arg == "--development-package");
     if uninstall_only {
         if let Some(location) = backend::installed_location() {
             if same_directory(&package, &location) && backend::handoff_uninstall(&location).is_ok()
@@ -1029,7 +1027,7 @@ pub fn launch_from_executable(uninstall_only: bool) -> eframe::Result {
             }
         }
     }
-    run(package, development, uninstall_only)
+    run(package, uninstall_only)
 }
 
 fn same_directory(left: &std::path::Path, right: &std::path::Path) -> bool {
@@ -1041,7 +1039,7 @@ fn same_directory(left: &std::path::Path, right: &std::path::Path) -> bool {
     }
 }
 
-pub fn run(package: PathBuf, development: bool, uninstall_only: bool) -> eframe::Result {
+pub fn run(package: PathBuf, uninstall_only: bool) -> eframe::Result {
     let title = if uninstall_only {
         "OpenPrism Kaldırma"
     } else {
@@ -1092,7 +1090,6 @@ pub fn run(package: PathBuf, development: bool, uninstall_only: bool) -> eframe:
             cc.egui_ctx.set_fonts(fonts);
             Ok(Box::new(Installer::new(
                 package,
-                development,
                 uninstall_only,
             )))
         }),

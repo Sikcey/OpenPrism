@@ -4,7 +4,6 @@ param([string]$PackageDirectory = $PSScriptRoot,
       [ValidateSet('core','byedpi','zapret','byedpi,zapret')][string]$SelectedComponent = 'core',
       [switch]$DevelopmentPackage, [switch]$ValidateOnly, [switch]$Fixture)
 $ErrorActionPreference = 'Stop'
-$TrustedPublisher = '' # Replaced in a signed release.
 $package = [IO.Path]::GetFullPath($PackageDirectory).TrimEnd('\')
 $install = [IO.Path]::GetFullPath($InstallDirectory).TrimEnd('\')
 function Assert-NoLinks([string]$path) {
@@ -19,14 +18,6 @@ if ($package -eq $install -or $package.StartsWith($install + '\', [StringCompari
 $manifestPath = Join-Path $package 'package-manifest.json'
 $manifestBytes = [IO.File]::ReadAllBytes($manifestPath)
 if ($manifestBytes.Length -gt 1048576) { throw 'Manifest too large.' }
-if (-not $DevelopmentPackage) {
-    if (-not $TrustedPublisher) { throw 'No trusted publisher configured. Use a signed release or explicitly select DevelopmentPackage.' }
-    Add-Type -AssemblyName System.Security
-    $cms = [Security.Cryptography.Pkcs.SignedCms]::new([Security.Cryptography.Pkcs.ContentInfo]::new($manifestBytes), $true)
-    $cms.Decode([IO.File]::ReadAllBytes((Join-Path $package 'package-manifest.p7s')))
-    $cms.CheckSignature($false)
-    if ($cms.SignerInfos.Count -ne 1 -or $cms.SignerInfos[0].Certificate.Thumbprint -ne $TrustedPublisher) { throw 'Untrusted publisher.' }
-}
 $manifest = [Text.Encoding]::UTF8.GetString($manifestBytes).TrimStart([char]0xfeff) | ConvertFrom-Json
 if ($manifest.product -ne 'OpenPrism' -or -not $manifest.files) { throw 'Wrong product or empty manifest.' }
 $seen = [Collections.Generic.HashSet[string]]::new([StringComparer]::OrdinalIgnoreCase)

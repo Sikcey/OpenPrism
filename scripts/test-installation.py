@@ -36,12 +36,10 @@ def run(script, *args, success=True):
 
 installer = repo / "scripts/install-openprism.ps1"
 common = ["-PackageDirectory", package, "-InstallDirectory", installed]
-run(installer, *common, "-ValidateOnly", success=False)
-print("PASS unsigned release rejected by default")
-run(installer, *common, "-DevelopmentPackage", "-ValidateOnly")
+run(installer, *common, "-ValidateOnly")
 assert not installed.exists()
-print("PASS validation performs no installation")
-run(installer, *common, "-DevelopmentPackage", "-Fixture")
+print("PASS unsigned package validates without installing or requiring a flag")
+run(installer, *common, "-Fixture")
 assert (installed / "backend/WGTun.Service.exe").exists()
 (installed / "foreign.txt").write_text("keep me", encoding="utf-8")
 (installed / "README.md").write_text("modified by user", encoding="utf-8")
@@ -51,11 +49,11 @@ assert (installed / "README.md").read_text() == "modified by user"
 assert not (installed / "backend/WGTun.Service.exe").exists()
 print("PASS uninstall removes owned payload and preserves foreign/modified files")
 (package / "WGTun.exe").write_text("tampered", encoding="utf-8")
-run(installer, *common, "-DevelopmentPackage", "-ValidateOnly", success=False)
+run(installer, *common, "-ValidateOnly", success=False)
 print("PASS tampered package rejected")
 manifest["files"][0]["path"] = "../escape.exe"
 (package / "package-manifest.json").write_text(json.dumps(manifest), encoding="utf-8")
-run(installer, *common, "-DevelopmentPackage", "-ValidateOnly", success=False)
+run(installer, *common, "-ValidateOnly", success=False)
 assert not (root / "escape.exe").exists()
 print("PASS path traversal rejected before writes")
 print("Temporary fixture retained:", root)

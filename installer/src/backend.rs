@@ -18,7 +18,6 @@ pub struct App {
 pub struct Plan {
     pub package: PathBuf,
     pub location: PathBuf,
-    pub development: bool,
     pub byedpi: bool,
     pub zapret: bool,
     pub startup: bool,
@@ -253,7 +252,7 @@ fn run(mut c: Command, input: Option<&Value>) -> Result<Vec<u8>, String> {
     let _ = b.join();
     if !status.success() {
         return Err(
-            "İşlem başarısız. Paket imzasını, dosyaları ve yönetici onayını denetle; yeniden dene."
+            "İşlem başarısız. Paket dosyalarını ve yönetici onayını denetle; yeniden dene."
                 .into(),
         );
     }
@@ -276,10 +275,6 @@ fn api(root: &Path, args: &[&str], input: Option<&Value>) -> Result<Value, Strin
     Ok(value)
 }
 fn script(plan: &Plan, validate: bool) -> Result<(), String> {
-    let publisher = option_env!("OPENPRISM_INSTALLER_PUBLISHER").unwrap_or_default();
-    if !plan.development && publisher.is_empty() {
-        return Err("Bu paket imzasız. Bağımsız OpenPrism-Installer.exe dosyasını veya çıkarılan geliştirme paketindeki Install.cmd dosyasını kullan.".into());
-    }
     // Embed the repository installer so a neighbouring script cannot inject commands.
     let temp =
         std::env::temp_dir().join(format!("OpenPrism-Installer-{}.ps1", uuid::Uuid::new_v4()));
@@ -289,15 +284,6 @@ fn script(plan: &Plan, validate: bool) -> Result<(), String> {
         .open(&temp)
         .map_err(|_| "Geçici kurulum dosyası oluşturulamadı.")?;
     let source = include_str!("../../scripts/install-openprism.ps1");
-    let source = if publisher.len() == 40 && publisher.bytes().all(|byte| byte.is_ascii_hexdigit())
-    {
-        source.replace(
-            "$TrustedPublisher = ''",
-            &format!("$TrustedPublisher = '{publisher}'"),
-        )
-    } else {
-        source.to_owned()
-    };
     f.write_all(source.as_bytes())
         .map_err(|_| "Kurulum dosyası yazılamadı.")?;
     drop(f);
@@ -325,9 +311,6 @@ fn script(plan: &Plan, validate: bool) -> Result<(), String> {
             (false, false) => "core",
         },
     ]);
-    if plan.development {
-        c.arg("-DevelopmentPackage");
-    }
     if validate {
         c.arg("-ValidateOnly");
     }
@@ -396,7 +379,7 @@ pub fn install(plan: Plan, tx: Sender<Event>) {
             0.56,
             "Dosyalar aşamalandırılıyor, OpenPrism hizmeti kuruluyor…",
         );
-        script(&plan, false)?;
+        script(&plan, false).map_err(|error| format!("Hizmet kurulumu: {error}"))?;
         progress(0.85, "Seçilen uygulama kuralları kaydediliyor…");
         let selected = Value::Array(
             plan.apps

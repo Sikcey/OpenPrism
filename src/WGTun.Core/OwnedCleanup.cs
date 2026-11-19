@@ -20,11 +20,26 @@ public sealed partial class AppBackend
             catch (IOException e) when (attempt < 40 && (e.HResult & 0xffff) is 32 or 33) { Thread.Sleep(250); }
         }
     }
+    private static readonly string[] EngineLogs = ["byedpi.log", "zapret.log"];
+    private static void CleanupOrphanedEngineLogs()
+    {
+        if (!Directory.Exists(BrokerRoot)) return;
+        VerifyNoReparse(BrokerRoot); VerifyNoReparse(BrokerData);
+        if (Directory.EnumerateFileSystemEntries(BrokerRoot).Any(path => !string.Equals(path, BrokerData, StringComparison.OrdinalIgnoreCase))
+            || !Directory.Exists(BrokerData)) return;
+        var files = Directory.GetFileSystemEntries(BrokerData);
+        if (files.Any(path => !EngineLogs.Contains(Path.GetFileName(path), StringComparer.OrdinalIgnoreCase)
+            || (File.GetAttributes(path) & (FileAttributes.Directory | FileAttributes.ReparsePoint)) != 0)) return;
+        foreach (string file in files) File.Delete(file);
+        Directory.Delete(BrokerData);
+        Directory.Delete(BrokerRoot);
+    }
     private static void CleanupBrokerData()
     {
         VerifyNoReparse(BrokerData);
         foreach (string name in new[] { "last-profile.dpapi", "engine.log", "service.log", "service.log.previous", "lifecycle.log", "lifecycle.log.previous", "capture.log", "service-error.log" })
             File.Delete(Path.Combine(BrokerData, name));
+        foreach (string name in EngineLogs) File.Delete(Path.Combine(BrokerData, name));
         string captureRoot = Path.Combine(BrokerRoot, "dependencies", "proxifyre");
         if (Directory.Exists(captureRoot)) File.Delete(Path.Combine(captureRoot, "app-config.json"));
         if (Directory.Exists(captureRoot)) File.Delete(Path.Combine(captureRoot, "proxifyre_log.pcap"));

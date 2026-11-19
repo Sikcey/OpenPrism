@@ -225,6 +225,7 @@ public sealed partial class AppBackend
                 SingBoxDependencies.ValidateComponent(staged.Path, "sing-box");
                 string source = Path.GetFullPath(AppContext.BaseDirectory);
                 VerifyNoReparse(source); VerifyNoReparse(BrokerRoot);
+                CleanupOrphanedEngineLogs();
                 if (Directory.Exists(BrokerRoot)) throw new IOException("Previous installation directory contains preserved files: " + string.Join(", ", Directory.EnumerateFiles(BrokerRoot, "*", SearchOption.AllDirectories).Select(path => Path.GetRelativePath(BrokerRoot, path)).Take(20)));
                 CreatePrivateDirectory(BrokerRoot, true);
                 foreach (string file in Directory.EnumerateFiles(source, "*", SearchOption.AllDirectories)) {

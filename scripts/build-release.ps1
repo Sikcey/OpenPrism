@@ -11,8 +11,6 @@ if (Test-Path -LiteralPath $out) { throw 'Remove the previous release-package ex
 & (Join-Path $PSScriptRoot 'build-native.ps1') -OutputDirectory 'artifacts/release-package' -CertificateThumbprint $CertificateThumbprint
 if ($LASTEXITCODE -ne 0) { throw 'Build failed.' }
 Copy-Item (Join-Path $PSScriptRoot 'install-openprism.ps1'), (Join-Path $PSScriptRoot 'uninstall-openprism.ps1') -Destination $out
-$installer = Join-Path $out 'install-openprism.ps1'
-(Get-Content -Raw -LiteralPath $installer).Replace("$" + "TrustedPublisher = ''", "$" + "TrustedPublisher = '" + $cert.Thumbprint + "'") | Set-Content -LiteralPath $installer -Encoding UTF8
 function Sign-ReleaseFile([string]$file) {
     $signed = Set-AuthenticodeSignature -LiteralPath $file -Certificate $cert -HashAlgorithm SHA256 -TimestampServer $TimestampUrl
     if ($signed.Status -ne 'Valid') { throw "Signing failed: $file ($($signed.Status))" }

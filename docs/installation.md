@@ -4,13 +4,13 @@
 
 Build with scripts/build-native.ps1. The GUI and backend must stay together. Core setup installs sing-box and the process-capture payload; the chosen ByeDPI or Zapret engine is optional and separate. The new selective packet ingress uses pinned WinDivert; ProxiFyre and the NDIS Windows Packet Filter prerequisite are no longer installed. UI, broker and WGTun.Tun.exe must be a matched build.
 
-Open the standalone `OpenPrism-Installer.exe`. The wizard verifies the embedded package, prepares the existing WARP account or creates a free account after you accept the Cloudflare terms, and creates rules only for apps you select. Setup uses one administrator approval for the Windows service and all selected components. The default destination is the current user's `%LOCALAPPDATA%\OpenPrism`, and setup registers a Windows uninstall entry. To use an extracted package instead, open `OpenPrism-Setup.exe` for signed releases or `Install.cmd` for unsigned local builds.
+Open the standalone `OpenPrism-Installer.exe`. The wizard verifies the embedded package, prepares the existing WARP account or creates a free account after you accept the Cloudflare terms, and creates rules only for apps you select. Setup uses one administrator approval for the Windows service and all selected components. The default destination is the current user's `%LOCALAPPDATA%\OpenPrism`, and setup registers a Windows uninstall entry. To use an extracted package instead, open `OpenPrism-Setup.exe` directly.
 
 ## Unsigned preview releases
 
 Download the standalone `OpenPrism-Installer.exe` from GitHub Releases, verify its SHA-256 against the release checksum, and open it directly. The installer contains the application and its matching backend; setup still downloads the pinned networking dependencies and requires one administrator approval. Windows may show an unknown-publisher warning. The embedded package is checked for integrity, but this is not Authenticode publisher verification. Automatic signed updates are not available in this build.
 
-For an extracted unsigned development package, use `Install.cmd`, not `OpenPrism-Setup.exe` directly. The latter defaults to requiring a signed package.
+For an extracted package, open `OpenPrism-Setup.exe` directly. Manual setup checks package hashes without requiring a publisher signature.
 
 ## Signed releases
 
