@@ -5,7 +5,8 @@ public sealed partial class AppBackend
     {
         if (component is not ("core" or "byedpi" or "zapret")) return new(false, "Unknown component.");
         try {
-            var assets = DependencyDownloads.Engines.Where(a => a.Name is "sing-box" or "proxifyre");
+            var assets = DependencyDownloads.Engines.Where(a => a.Name == "sing-box");
+            assets = assets.Concat(DependencyDownloads.CaptureFiles);
             if (component == "byedpi") assets = assets.Concat(DependencyDownloads.Engines.Where(a => a.Name == "byedpi"));
             if (component == "zapret") assets = assets.Concat(DependencyDownloads.ZapretFiles);
             foreach (var asset in assets) await DependencyDownloads.EnsureAsync(asset, text => ConnectionProgress?.Invoke(text));

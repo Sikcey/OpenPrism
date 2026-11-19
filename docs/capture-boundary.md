@@ -1,33 +1,43 @@
-# Capture boundary
+# Selective packet boundary — 0.3.0
 
-## Runtime architecture
+The broker starts WGTun.Tun, which embeds pinned sing-box 1.14.4 and sing-tun.
+ProxiFyre and the Windows Packet Filter prerequisite have been removed from
+installation and runtime. There is no default-route Windows TUN adapter.
 
-Application traffic is classified by the pinned ProxiFyre 2.7.0 executable and the Windows Packet Filter driver before being passed to a local SOCKS endpoint. No system-wide TUN is started.
+WinDivert captures outbound TCP/UDP. The engine resolves the real socket owner
+using the Windows endpoint tables and QueryFullProcessImageName. TCP lookup
+matches the complete tuple. Ambiguous UDP shared bindings, inaccessible owners,
+pre-existing TCP connections without a captured SYN, unsupported fragments,
+link-local/multicast and native DNS remain direct. This is fail-open routing,
+not a kill switch or an atomic kernel per-process enforcement boundary.
 
-- WireGuard/WARP: a loopback sing-box SOCKS inbound forwards to its userspace WireGuard endpoint.
-- ByeDPI: the capture engine forwards directly to ByeDPI's loopback proxy.
-- Zapret: the capture engine forwards to the reserved-port IPv4 relay; winws sees only the confined egress filter.
+WGTun's existing rule compiler supplies ordered rules to sing-box's matcher.
+Exact Windows paths/names are adapted to anchored case-insensitive regexes.
+Direct exceptions win. Only positive selections enter the in-process sing-tun
+gVisor stack. Excluded packets are reinjected without proxy/TUN processing;
+they can still incur the WinDivert queue overhead. Their DNS is not rewritten.
 
-Only WireGuard/WARP start sing-box. All methods use the same application capture policy. Native DNS stays direct; local-network bypass is enabled. No Windows proxy setting, DNS server setting or route is rewritten.
+Selected flows use sing-box's actual router and WireGuard/SOCKS outbound.
+ByeDPI and Zapret remain optional engine processes. Zapret additionally uses
+its confined IPv4 leased-port relay; its IPv6 flows remain native. Selected
+TCP can recover a readable TLS SNI/HTTP Host with a bounded 750 ms, 64 KiB
+inspection and exact byte replay, then resolve through the configured DoH
+transport. This does not encrypt or attribute the original Windows DNS query.
+ECH, absent SNI and server-first traffic retain the original destination.
 
-## Matching and admission
+The broker owns the process job. The packet stack and transport start before
+interception readiness. A five-second broker heartbeat and explicit stop file
+release interception; hard process termination closes WinDivert handles in
+Windows. Disconnect closes capture before engines. Existing proxied TCP
+connections must reconnect. Retries remain bounded and explicit disconnect
+cancels recovery. Flow memory is bounded and expired UDP flows are collected.
+Reply injection rechecks the original endpoint owner before delivery.
 
-Includes use executable names or absolute folder paths with a trailing separator. Exclusions use absolute folder paths, preventing similarly prefixed sibling folders from matching. Exclusions take priority over active rules. Exclude mode uses an explicit catch-all plus the requested folder exclusions.
-
-ProxiFyre's name exclusions use substring matching. OpenPrism therefore rejects name-based exclusions and protocol-specific exclusions rather than claiming an exact boundary. Destination-IP and individual executable-path rules are currently unsupported by this capture adapter. Linked application folders are rejected. Unsupported combinations fail before processes or network capture start; there is no TUN fallback.
-
-DNS is shared by Windows and cannot reliably be attributed to its originating application. Keeping it native is deliberate. The application's own encrypted resolver, when present, remains the application's responsibility.
-
-## Installation and lifecycle
-
-The capture payload is downloaded from a pinned official release archive and every deployed file is hashed. A pre-existing Windows Packet Filter driver is a shared prerequisite and is not removed. The app adds two firewall rules restricted to its protected capture executable; only matching app-owned registrations are removed.
-
-The service owns the capture and transport process tree. Startup waits for the capture host's ready indication. Stop/crash cleanup closes the job and driver handles. Component and payload inventories allow removal of recognized files while preserving changed or unknown files.
-
-## Validation and remaining limits
-
-Live checks covered all routing scopes and direct-over-include precedence. Native route/DNS snapshots matched before, during and after capture. Selected HTTPS requests succeeded across ByeDPI, Zapret and WARP/WireGuard.
-
-This is not a leak-proof boundary or kill switch. Unresolved process ownership, existing flows, fragmented traffic, driver conflicts and IPv6/UDP details need further validation. ByeDPI and Zapret matching is IPv4-only; matched IPv6 is blocked for application fallback, while unmatched IPv6 remains native. Streaming playback has not been tested.
-
-Primary references: [ProxiFyre configuration](https://github.com/wiresock/proxifyre/blob/v2.7.0/docs/configuration.md), [Windows Packet Filter](https://github.com/wiresock/ndisapi), [sing-box SOCKS inbound](https://sing-box.sagernet.org/configuration/inbound/socks/).
+Verified: real Windows TCP/UDP round trips through the production engine,
+three separate selected/ignored/direct-exempt executables, direct traffic
+after disconnect and after hard-killing a capture worker. Test-created driver
+registrations were removed and DNS configuration was preserved. IPv4 and IPv6
+packet ingress/return and excluded/unknown ownership are tested in the actual
+sing-tun stack. The host lacks a non-link-local IPv6 address, so native global
+IPv6 was skipped. Real ISP/Discord/QUIC and provider interoperability still
+require user testing; earlier ProxiFyre results do not validate this backend.

@@ -1,5 +1,5 @@
 [CmdletBinding()]
-param([Parameter(Mandatory=$true)][ValidateSet('Ping','Snapshot','InstallCore','InstallByeDpi','InstallZapret','RemoveByeDpi','RemoveZapret','RemoveServices','Stop')][string]$Operation)
+param([Parameter(Mandatory=$true)][ValidateSet('Ping','Snapshot','Versions','BackupRound2','InstallFresh','CaptureStart','CaptureStop','SteeringCapture','InstallCore','InstallByeDpi','InstallZapret','RemoveByeDpi','RemoveZapret','RemoveServices','Stop')][string]$Operation)
 $ErrorActionPreference = 'Stop'
 $sid = [Security.Principal.WindowsIdentity]::GetCurrent().User.Value
 $pipe = [IO.Pipes.NamedPipeClientStream]::new('.', ('OpenPrism.Maintenance.' + $sid.Replace('-', '_')), [IO.Pipes.PipeDirection]::InOut, [IO.Pipes.PipeOptions]::Asynchronous)

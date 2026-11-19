@@ -7,10 +7,11 @@ public sealed partial class AppBackend
     {
         if (!Enum.IsDefined(settings.Scope)) throw new InvalidOperationException("Unknown traffic scope.");
         var result = new List<Dictionary<string, object>> {
-            new() { ["process_name"] = new[] { "sing-box.exe", "ciadpi.exe", "winws.exe", "WGTun.Service.exe", "WGTun.Desktop.exe", "wgtun.exe" }, ["action"] = "route", ["outbound"] = "direct" },
+            new() { ["process_name"] = new[] { "WGTun.Tun.exe", "sing-box.exe", "ciadpi.exe", "winws.exe", "WGTun.Service.exe", "WGTun.Desktop.exe", "wgtun.exe" }, ["action"] = "route", ["outbound"] = "direct" },
             new() { ["ip_cidr"] = new[] { "127.0.0.0/8", "::1/128" }, ["action"] = "route", ["outbound"] = "direct" }
         };
         var rules = settings.Rules.Where(r => r.Enabled && (settings.Scope != TrafficScope.All || r.Action == RuleAction.Direct)).OrderByDescending(r => r.Action == RuleAction.Direct).ToList();
+        if (settings.Profile == ProfileKind.Zapret) result.Add(new() { ["ip_version"] = 6, ["action"] = "route", ["outbound"] = "direct" });
         if (settings.Scope != TrafficScope.All && settings.RuleSchemaVersion == 0 && rules.Count == 0)
             rules.AddRange(settings.Applications.Where(a => a.Selected).Select(a => new RoutingRule { Type = RuleType.ProcessPath, Value = a.Path }));
         if ((rules.Count < 1 && settings.Scope != TrafficScope.All) || rules.Count > 256) throw new InvalidOperationException("Select between 1 and 256 rules.");
@@ -37,9 +38,8 @@ public sealed partial class AppBackend
         }
         // Exclusions must precede DNS hijacking and overlapping active rules.
         int firstActive = result.FindIndex(r => r.TryGetValue("outbound", out var outbound) && Equals(outbound, "active"));
-        result.Insert(firstActive < 0 ? result.Count : firstActive, settings.Scope == TrafficScope.All
-            ? new() { ["port"] = 53, ["action"] = "hijack-dns" }
-            : new() { ["port"] = 53, ["action"] = "route", ["outbound"] = "direct" });
+        result.Insert(firstActive < 0 ? result.Count : firstActive,
+            new() { ["port"] = 53, ["action"] = "route", ["outbound"] = "direct" });
         return result;
     }
 }

@@ -19,16 +19,18 @@ public static class ByeDpiStrategies
         Preset("byedpi-windows-fake", "Windows disorder + fake", "--disorder", "1", "--fake", "-1"),
         new("tr-tt-windows", "byedpi", "TR / T?rk Telekom (Windows candidate)", ["--proto", "tls", "--split", "1", "--disorder", "1", "--fake", "-1", "--auto", "torst,redirect,ssl_err", "--timeout", "2"], "elrondforwin/byedpi-turkey", "MIT; profiles/turk-telekom.conf adapted: unsupported Windows md5sig omitted. Not ISP-verified here."),
         new("tr-sol-default", "byedpi", "TR / Superonline + T?rk Telekom (TTL 3 candidate)", ["--oob", "1", "--disorder", "3+s", "--split", "3", "--ttl", "3"], "elrondforwin/byedpi-turkey", "MIT; varsayilan-profil.conf. Low fake TTL is network-dependent; not ISP-verified here."),
-        new("tr-sol-alternative", "byedpi", "TR / Superonline + T?rk Telekom (OOB candidate)", ["--oob", "1", "--auto", "torst,redirect,ssl_err"], "elrondforwin/byedpi-turkey", "MIT; varsayilan2.conf. Upstream reports both ISPs; validate on your connection.")
+        new("tr-sol-alternative", "byedpi", "TR / Superonline + T?rk Telekom (OOB candidate)", ["--oob", "1", "--auto", "torst,redirect,ssl_err"], "elrondforwin/byedpi-turkey", "MIT; varsayilan2.conf. Upstream reports both ISPs; validate on your connection."),
+        new("byedpi-user-split-disorder", "byedpi", "Split + disorder / auto", ["--split", "1", "--disorder", "3+s", "--mod-http=h,d", "--auto=torst", "--tlsrec", "1+s"], "User-provided", "ByeDPI 0.17.3; TCP/HTTP/TLS candidate. Effectiveness depends on the network."),
     ];
     private static DpiPreset Preset(string id, string name, params string[] args) =>
         new(id, "byedpi", name, args, "GoodCheckGoGo / ByeDPI", "HTTPS TCP strategy; results depend on the network and tested hosts.");
     public static string[] Resolve(DpiSettings settings)
     {
         if (settings == null || !string.Equals(settings.Engine, "byedpi", StringComparison.OrdinalIgnoreCase)
-            || !string.IsNullOrWhiteSpace(settings.CustomArguments)) throw new InvalidOperationException("Invalid ByeDPI configuration.");
+            ) throw new InvalidOperationException("Invalid ByeDPI configuration.");
+        if (!string.IsNullOrWhiteSpace(settings.CustomArguments)) return DpiCustomArguments.Parse("byedpi", settings.CustomArguments);
         var preset = All.FirstOrDefault(p => p.Id == settings.PresetId)
-            ?? throw new InvalidOperationException("Unknown ByeDPI strategy. Update or repair the WGTun service.");
+            ?? throw new InvalidOperationException("Unknown ByeDPI strategy. Update or repair the OpenPrism service.");
         return [.. preset.Arguments];
     }
 }

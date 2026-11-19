@@ -11,7 +11,6 @@ internal static class DependencyDownloads
 {
     internal sealed record Asset(string Name, string Url, string Hash);
     internal static readonly Asset[] Engines = [
-        new("proxifyre", "https://github.com/wiresock/proxifyre/releases/download/v2.7.0/ProxiFyre-v2.7.0-x64.zip", "29a41f6f1d6e79225274ad30450da4cdbcdc0652fa4f0819f35157541978764f"),
         new("sing-box", "https://github.com/SagerNet/sing-box/releases/download/v1.14.4/sing-box-1.14.4-windows-amd64.zip", "99185d75d314a07dbba4a130c8ad986cbeb629a07927975636b341ca61f991df"),
         new("goodcheck", "https://github.com/Storik4pro/GoodCheckGoGo/releases/download/0.8.5/bin.zip", "e140c49eee8e84e66d2188e51829d21ac8f4f4b466fed26a5412f49425ae7cc9"),
         new("byedpi", "https://github.com/hufrea/byedpi/releases/download/v0.17.3/byedpi-17.3-x86_64-w64.zip", "70d2c94147193cb915f9c6eb5144b8d404dacbcfa90bda2383b6b211afafa456")];
@@ -22,6 +21,7 @@ internal static class DependencyDownloads
         new("WinDivert64.sys", "https://raw.githubusercontent.com/bol-van/zapret-win-bundle/6b4375fa04f6bd7017eec379e16e462d3ea8df66/zapret-winws/WinDivert64.sys", "8da085332782708d8767bcace5327a6ec7283c17cfb85e40b03cd2323a90ddc2"),
         new("cygwin1.dll", "https://raw.githubusercontent.com/bol-van/zapret-win-bundle/6b4375fa04f6bd7017eec379e16e462d3ea8df66/zapret-winws/cygwin1.dll", "103104a52e5293ce418944725df19e2bf81ad9269b9a120d71d39028e821499b")
     ];
+    internal static IEnumerable<Asset> CaptureFiles => ZapretFiles.Where(a => a.Name is "WinDivert.dll" or "WinDivert64.sys");
     private static readonly HttpClient Client = new() { Timeout = TimeSpan.FromMinutes(4) };
     private static readonly SemaphoreSlim Gate = new(1);
     internal static string Cache => Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "WGTun", "downloads-v1");

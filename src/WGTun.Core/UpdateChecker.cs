@@ -4,7 +4,7 @@ namespace WGTun.Core;
 public sealed record UpdateCheckResult(bool Success, string Message, string CurrentVersion, string? LatestVersion, bool UpdateAvailable, string? ReleaseUrl);
 public static class UpdateChecker
 {
-    public const string CurrentVersion = "0.2.0";
+    public const string CurrentVersion = "0.3.0";
     public static async Task<UpdateCheckResult> CheckAsync()
     {
         using var client = new HttpClient { Timeout = TimeSpan.FromSeconds(8) };

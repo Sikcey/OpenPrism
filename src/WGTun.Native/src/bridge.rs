@@ -19,15 +19,15 @@ pub struct Bridge {
 
 fn allowed(action: &str, args: &[String]) -> bool {
     match action {
-        "check-updates" | "clear-logs" | "logs" | "scan" | "load-settings" | "save-settings"
+        "check-updates" | "clear-logs" | "logs" | "load-settings" | "save-settings"
         | "status" | "connect" | "disconnect" | "resume" | "startup" | "goodcheck"
         | "goodcheck-cancel" | "remove-service" | "warp-license" | "validate-rule" | "detect"
         | "presets" => args.is_empty(),
+        "scan" => args == ["--status-only"],
         "install-service" => {
             args.is_empty()
                 || (args.len() == 1 && matches!(args[0].as_str(), "core" | "byedpi" | "zapret"))
         }
-        "prepare-warp" => args.is_empty() || args == ["--accept-cloudflare-terms"],
         "import-wireguard" | "import-warp" | "diagnostics-export" | "apply-update" => {
             args.len() == 1
         }
@@ -51,11 +51,29 @@ fn backend_path() -> Result<std::path::PathBuf, String> {
             .join("Broker")
             .join("WGTun.Service.exe")
     });
-    [Some(bundled), protected, Some(adjacent)]
-        .into_iter()
-        .flatten()
-        .find(|p| p.is_file())
-        .ok_or_else(|| "Hizmet hazır değil".into())
+    [
+        Some(bundled),
+        protected,
+        std::env::var_os("ProgramFiles").map(|p| {
+            std::path::PathBuf::from(p)
+                .join("OpenPrism")
+                .join("Broker")
+                .join("WGTun.Service.exe")
+        }),
+        std::env::var_os("ProgramFiles").map(|p| {
+            std::path::PathBuf::from(p)
+                .join("OpenPrism")
+                .join("Broker")
+                .join("OpenPrism.Service.exe")
+        }),
+        Some(dir.join("backend").join("OpenPrism.Service.exe")),
+        Some(dir.join("OpenPrism.Service.exe")),
+        Some(adjacent),
+    ]
+    .into_iter()
+    .flatten()
+    .find(|p| p.is_file())
+    .ok_or_else(|| "Hizmet hazır değil".into())
 }
 impl Bridge {
     pub fn new(ctx: egui::Context) -> Self {
@@ -121,7 +139,7 @@ impl Bridge {
                             600
                         } else if action == "install-service" {
                             600
-                        } else if action == "prepare-warp" {
+                        } else if matches!(action.as_str(), "import-warp" | "warp-license") {
                             120
                         } else {
                             60

@@ -22,5 +22,10 @@ public sealed partial class AppBackend
     {
         try { ValidateEngineDependencies(); return true; } catch (Exception e) when (e is IOException or UnauthorizedAccessException) { return false; }
     }
-    public static void ValidateEngineDependencies() => SingBoxDependencies.Validate();
+    public static void ValidateEngineDependencies()
+    {
+        SingBoxDependencies.Validate();
+        SingBoxDependencies.ValidateComponent(SingBoxDependencies.Root, "selective-tun");
+        SingBoxDependencies.ValidateComponent(SingBoxDependencies.Root, "capture");
+    }
 }

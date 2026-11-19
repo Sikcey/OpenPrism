@@ -27,14 +27,32 @@ public sealed partial class AppBackend : IAppBackend
         settings.Applications ??= []; settings.Rules ??= []; settings.Dpi ??= new();
         settings.ZapretDpi ??= settings.Dpi.Engine == "zapret" ? settings.Dpi : new DpiSettings { Engine = "zapret", PresetId = "zapret-standard" };
         RulePolicy.Migrate(settings);
-        foreach (var app in DetectApplications()) {
-            var existing = settings.Applications.FirstOrDefault(a => string.Equals(a.FolderPath, app.FolderPath, StringComparison.OrdinalIgnoreCase));
-            if (existing != null) { existing.Running = app.Running; existing.Path = app.Path; continue; }
-            settings.Applications.Add(app);
-            if (!settings.Rules.Any(r => r.Type == RuleType.FolderPath && string.Equals(r.Value, app.FolderPath, StringComparison.OrdinalIgnoreCase)))
-                settings.Rules.Add(new RoutingRule { Name = app.Name, Type = RuleType.FolderPath, Value = app.FolderPath, Enabled = false });
-        }
         return settings;
+    }
+    public async Task<OperationResult> ApplyInstallerRulesAsync(AppEntry[] apps)
+    {
+        if (apps.Length == 0) return new(true, "No applications selected.");
+        if (apps.Any(app => !Path.IsPathFullyQualified(app.FolderPath) || !Directory.Exists(app.FolderPath)))
+            return new(false, "A selected application folder is unavailable.");
+
+        await Gate.WaitAsync();
+        try {
+            var settings = await LoadAsync();
+            foreach (var app in apps) {
+                var existing = settings.Applications.Find(a => string.Equals(a.FolderPath, app.FolderPath, StringComparison.OrdinalIgnoreCase));
+                if (existing == null) settings.Applications.Add(app);
+                (existing ?? app).Selected = true;
+
+                var rule = settings.Rules.Find(r => r.Type == RuleType.FolderPath
+                    && string.Equals(r.Value, app.FolderPath, StringComparison.OrdinalIgnoreCase));
+                if (rule == null) settings.Rules.Add(new RoutingRule {
+                    Type = RuleType.FolderPath, Value = app.FolderPath, Name = app.Name, Application = app.Name
+                });
+                else if (rule.Action == RuleAction.ActiveConnection) rule.Enabled = true;
+            }
+            await AtomicWriteAsync(FileAt("settings.json"), JsonSerializer.SerializeToUtf8Bytes(settings, Json));
+            return new(true, "Selected application rules saved.");
+        } finally { Gate.Release(); }
     }
     public async Task SaveAsync(UserSettings settings)
     {

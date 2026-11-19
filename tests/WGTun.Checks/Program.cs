@@ -28,6 +28,12 @@ policy.Profile = ProfileKind.Dpi;
 var dpi = Build();
 Assert(dpi["dns"]!["servers"]![0]!["type"]!.GetValue<string>() == "https", "default DPI DNS uses DoH");
 Assert(dpi["dns"]!["servers"]!.AsArray().All(x => x?["detour"]?.GetValue<string>() != "direct"), "DNS avoids invalid empty direct detours");
+policy.Dpi.Dns = "192.0.2.53";
+var customDns = Build()["dns"]!["servers"]![0]!;
+Assert(customDns["type"]!.GetValue<string>() == "https" && customDns["server"]!.GetValue<string>() == "192.0.2.53" && customDns["tls"]!["server_name"]!.GetValue<string>() == "192.0.2.53" && customDns["detour"]!.GetValue<string>() == "active", "custom DPI DNS retains authenticated DoH through engine");
+policy.Dpi.Dns = "invalid.example";
+Reject(() => Build(), "custom DPI DNS requires an IP address");
+policy.Dpi.Dns = "";
 File.WriteAllText(Path.Combine(generated, "byedpi.json"), dpi.ToJsonString());
 Assert(dpi["endpoints"] is not JsonArray endpoints || endpoints.Count == 0, "ByeDPI has no WireGuard endpoint");
 Assert(dpi["outbounds"]!.AsArray().Any(x => x?["type"]?.GetValue<string>() == "socks"), "ByeDPI uses SOCKS outbound");
@@ -100,7 +106,7 @@ Assert(zapret.Method == ConnectionMethod.Zapret, "Zapret method roundtrip");
 Assert(zapretConfig["outbounds"]!.AsArray().Any(o => o?["tag"]?.GetValue<string>() == "active" && o?["type"]?.GetValue<string>() == "socks"), "Zapret selected traffic uses isolated SOCKS relay");
 Assert(zapretConfig["outbounds"]!.AsArray().Any(o => o?["tag"]?.GetValue<string>() == "direct" && o?["bind_interface"]?.GetValue<string>() == "Ethernet"), "Zapret direct output binds the physical adapter name");
 Assert(zapretConfig["route"]!["final"]!.GetValue<string>() == "direct" && zapretConfig["route"]!["rules"]!.AsArray().Any(r => r?["process_name"]?.ToJsonString().Contains("curl.exe") == true && r?["outbound"]?.GetValue<string>() == "active"), "Zapret selected-only policy isolates matching processes");
-Assert(zapretConfig["dns"]!["servers"]!.AsArray().All(d => d?["detour"]?.GetValue<string>() == "direct"), "Zapret DoH exits directly without re-entering relay");
+Assert(zapretConfig["dns"]!["servers"]![0]!["detour"]!.GetValue<string>() == "active", "Zapret DoH uses the selected engine");
 File.WriteAllText(Path.Combine(generated, "zapret.json"), zapretConfig.ToJsonString());
 zapret.Scope = TrafficScope.ExceptSelected;
 var exceptZapret = JsonNode.Parse(AppBackend.BuildSingBoxConfiguration("", zapret, 12080, testEgress))!;
@@ -145,23 +151,23 @@ if (OperatingSystem.IsWindows()) {
 var stremioSplit = new UserSettings { Profile = ProfileKind.Dpi, Scope = TrafficScope.SelectedOnly, RuleSchemaVersion = 2,
     Rules = [new() { Type = RuleType.ProcessName, Value = "stremio-runtime.exe", Action = RuleAction.ActiveConnection }, new() { Type = RuleType.ProcessName, Value = "stremio-runtime.exe", Action = RuleAction.Direct }] };
 var stremioJson = JsonNode.Parse(AppBackend.BuildSingBoxConfiguration("", stremioSplit))!;
-Assert(stremioJson["inbounds"]![0]!["strict_route"]!.GetValue<bool>() == false, "split mode does not install global strict DNS blocking");
+Assert(stremioJson["inbounds"]!.AsArray().Count == 0, "selective ingress has no OS adapter");
 var stremioRules = stremioJson["route"]!["rules"]!.AsArray();
 int stremioDirect = stremioRules.ToList().FindIndex(r => r?["process_name"]?.ToJsonString().Contains("stremio-runtime.exe") == true && r?["outbound"]?.GetValue<string>() == "direct");
 int stremioActive = stremioRules.ToList().FindIndex(r => r?["process_name"]?.ToJsonString().Contains("stremio-runtime.exe") == true && r?["outbound"]?.GetValue<string>() == "active");
 int dnsHijack = stremioRules.ToList().FindIndex(r => r?["action"]?.GetValue<string>() == "hijack-dns");
-Assert(stremioDirect >= 0 && stremioDirect < stremioActive && (dnsHijack < 0 || stremioDirect < dnsHijack), "explicit Stremio exclusion precedes active rules and DNS hijack");
+Assert(stremioDirect >= 0 && stremioActive > stremioDirect && dnsHijack < 0, "direct exemptions precede active; no system DNS hijack");
 stremioSplit.Scope = TrafficScope.All;
 var allWithExclusion = JsonNode.Parse(AppBackend.BuildSingBoxConfiguration("", stremioSplit))!;
 Assert(allWithExclusion["route"]!["rules"]!.AsArray().Any(r => r?["process_name"]?.ToJsonString().Contains("stremio-runtime.exe") == true && r?["outbound"]?.GetValue<string>() == "direct"), "all-traffic mode respects explicit exclusions");
-Assert(allWithExclusion["inbounds"]![0]!["strict_route"]!.GetValue<bool>(), "all-traffic mode retains strict routing");
+Assert(allWithExclusion["inbounds"]!.AsArray().Count == 0, "all-traffic still has no global TUN routes");
 
 foreach (var connectionProfile in Enum.GetValues<ProfileKind>()) {
     foreach (var splitScope in new[] { TrafficScope.SelectedOnly, TrafficScope.ExceptSelected }) {
         var regression = new UserSettings { Profile = connectionProfile, Scope = splitScope, RuleSchemaVersion = 2,
             Rules = [new() { Type = RuleType.FolderPath, Value = Path.GetTempPath(), Action = RuleAction.Direct }] };
         var built = JsonNode.Parse(AppBackend.BuildSingBoxConfiguration(config, regression, 12080, testEgress))!;
-        Assert(!built["inbounds"]![0]!["strict_route"]!.GetValue<bool>() && built["inbounds"]![0]!["dns_mode"]!.GetValue<string>() == "disabled", "split routing preserves native Windows DNS / " + connectionProfile + " / " + splitScope);
+    Assert(built["inbounds"]!.AsArray().Count == 0, "split routing preserves native Windows DNS and routes");
         Assert(!built["route"]!["rules"]!.AsArray().Any(r => r?["action"]?.GetValue<string>() == "hijack-dns"), "split routing does not hijack excluded application DNS / " + connectionProfile + " / " + splitScope);
         File.WriteAllText(Path.Combine(generated, $"split-{connectionProfile}-{splitScope}.json"), built.ToJsonString());
     }

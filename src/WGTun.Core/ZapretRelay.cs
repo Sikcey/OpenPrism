@@ -86,7 +86,7 @@ public sealed class ZapretRelay : IAsyncDisposable
     }
     private static async Task PumpAsync(Stream from, Stream to, Socket destination, CancellationToken token)
     {
-        await from.CopyToAsync(to, token);
+        await from.CopyToAsync(to, 16 * 1024, token);
         try { destination.Shutdown(SocketShutdown.Send); } catch (SocketException) { }
     }
     private static async Task<(string Host, int Port)> ReadTargetAsync(Stream stream, byte type, CancellationToken token)

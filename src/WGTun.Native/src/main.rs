@@ -1,5 +1,7 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 mod bridge;
+#[path = "../../../assets/prism.rs"]
+mod branding;
 mod dpi_config;
 mod locale;
 mod log_view;
@@ -15,13 +17,13 @@ use bridge::Bridge;
 use eframe::egui::{self, Color32, RichText, Stroke, Vec2};
 use serde_json::{json, Value};
 
-const BG: Color32 = Color32::from_rgb(19, 22, 25);
-const PANEL: Color32 = Color32::from_rgb(27, 31, 35);
-const LINE: Color32 = Color32::from_rgb(48, 55, 60);
-const ACCENT: Color32 = Color32::from_rgb(32, 175, 146);
+const BG: Color32 = Color32::from_rgb(8, 9, 11);
+const PANEL: Color32 = Color32::from_rgb(16, 17, 21);
+const LINE: Color32 = Color32::from_rgb(40, 42, 50);
+const ACCENT: Color32 = Color32::from_rgb(137, 230, 230);
 const SOFT: Color32 = Color32::from_rgb(23, 59, 52);
-const SUB: Color32 = Color32::from_rgb(160, 171, 178);
-const INK: Color32 = Color32::from_rgb(237, 242, 244);
+const SUB: Color32 = Color32::from_rgb(146, 148, 159);
+const INK: Color32 = Color32::from_rgb(243, 241, 235);
 fn valid_settings(v: &Value) -> bool {
     v.is_object() && v["rules"].is_array() && v["dpi"].is_object() && v["profile"].is_number()
 }
@@ -68,27 +70,21 @@ fn card(ui: &mut egui::Ui, f: impl FnOnce(&mut egui::Ui)) {
             f(ui);
         });
 }
-fn button(ui: &mut egui::Ui, text: &str, selected: bool) -> bool {
-    ui.add(
-        egui::Button::new(RichText::new(locale::tr(text)).color(if selected { INK } else { SUB }))
-            .fill(if selected { SOFT } else { PANEL })
-            .stroke(Stroke::NONE)
-            .corner_radius(7)
-            .min_size(Vec2::new(0., 30.)),
-    )
-    .clicked()
-}
 fn small(ui: &mut egui::Ui, text: &str) {
     ui.label(RichText::new(locale::tr(text)).size(11.).color(SUB));
 }
 fn title(ui: &mut egui::Ui, eyebrow: &str, title: &str) {
     ui.label(
         RichText::new(locale::tr(eyebrow).to_uppercase())
-            .size(10.)
+            .size(11.)
+            .strong()
             .color(SUB),
     );
-    ui.label(RichText::new(locale::tr(title)).size(25.).strong());
-    ui.add_space(12.);
+    ui.label(RichText::new(locale::tr(title)).font(egui::FontId::new(
+        34.,
+        egui::FontFamily::Name("bold".into()),
+    )));
+    ui.add_space(0.);
 }
 fn types(i: i64) -> &'static str {
     locale::tr(match i {
@@ -117,12 +113,14 @@ struct App {
     scan: Value,
     page: String,
     notice: String,
+    toasts: Vec<(String, f64)>,
     connected: bool,
+    service_fault: bool,
     offline: bool,
     pending: usize,
     preserve_notice: bool,
-    account: usize,
     license: String,
+    license_dialog: bool,
     rule: Option<Value>,
     rule_index: Option<usize>,
     log_view: log_view::LogView,
@@ -131,15 +129,7 @@ struct App {
     rule_error: String,
     dpi_dialog: bool,
     dpi_draft: Value,
-    warp_attempted: bool,
-    warp_preparing: bool,
-    warp_error: Option<String>,
     remove_confirm: bool,
-    connect_after: bool,
-    startup_loaded: bool,
-    startup_resume_pending: bool,
-    setup_step: u8,
-    setup_installing: bool,
     local_logs: std::collections::VecDeque<String>,
     backend_logs: std::collections::VecDeque<String>,
     logs_error: String,
@@ -200,7 +190,7 @@ impl App {
         let bridge = Bridge::new(ctx.clone());
         let mut initial_pending = 0;
         if !offline {
-            for action in ["load-settings", "scan", "status", "presets"] {
+            for action in ["load-settings", "status", "presets"] {
                 initial_pending += usize::from(bridge.call(action, vec![], None));
             }
         }
@@ -224,12 +214,14 @@ impl App {
             } else {
                 "Hizmet hazırlanıyor".into()
             },
+            toasts: Vec::new(),
             connected: false,
+            service_fault: false,
             offline,
             pending: initial_pending,
             preserve_notice: false,
-            account: 0,
             license: String::new(),
+            license_dialog: false,
             rule: None,
             rule_index: None,
             log_view: Default::default(),
@@ -238,15 +230,7 @@ impl App {
             rule_error: String::new(),
             dpi_dialog: false,
             dpi_draft: json!({}),
-            warp_attempted: false,
-            warp_preparing: false,
-            warp_error: None,
             remove_confirm: false,
-            connect_after: false,
-            startup_loaded: false,
-            startup_resume_pending: true,
-            setup_step: 0,
-            setup_installing: false,
             local_logs: Default::default(),
             backend_logs: Default::default(),
             logs_error: String::new(),
@@ -264,11 +248,22 @@ impl App {
             inspect_only: args.iter().any(|a| a == "--inspect-only"),
         };
         if fixture {
+            result.scan = json!({"serviceInstalled":true,"serviceReady":true,"hasPreparedWarpProfile":true,"components":[{"name":"ByeDPI","installed":true},{"name":"Zapret","installed":false}]});
             result.settings["rules"] = json!([
                 {"id":"fixture-discord","type":5,"name":"Discord","value":"Discord.exe","enabled":true},
                 {"id":"fixture-edge","type":5,"name":"Microsoft Edge","value":"msedge.exe","enabled":true},
                 {"id":"fixture-network","type":3,"name":"Yerel ağ","value":"192.168.0.0/16","enabled":false}
             ]);
+        }
+        if offline && args.iter().any(|a| a == "--fixture-errors") {
+            result.service_fault = true;
+            result.scan = json!({"serviceInstalled":false,"serviceReady":false});
+            result.notify_failure("connect");
+            result.notify_failure("status");
+            result.notify_failure("resume");
+            for (_, started) in &mut result.toasts {
+                *started -= 0.5;
+            }
         }
         if result.page == "rule" {
             result.page = "connection".into();
@@ -305,10 +300,31 @@ impl App {
         locale::apply_fonts(&result.ui_context);
         result
     }
-    fn call(&mut self, a: &str, args: Vec<String>, v: Option<Value>) {
+    fn notify_failure(&mut self, action: &str) {
+        let message = match locale::language() {
+            "en" => "The operation failed. Check your connection and retry, or repair the service in Services.",
+            "ru" => "\u{041e}\u{043f}\u{0435}\u{0440}\u{0430}\u{0446}\u{0438}\u{044f} \u{043d}\u{0435} \u{0432}\u{044b}\u{043f}\u{043e}\u{043b}\u{043d}\u{0435}\u{043d}\u{0430}. \u{041f}\u{0440}\u{043e}\u{0432}\u{0435}\u{0440}\u{044c}\u{0442}\u{0435} \u{0441}\u{043e}\u{0435}\u{0434}\u{0438}\u{043d}\u{0435}\u{043d}\u{0438}\u{0435} \u{0438} \u{043f}\u{043e}\u{0432}\u{0442}\u{043e}\u{0440}\u{0438}\u{0442}\u{0435} \u{043f}\u{043e}\u{043f}\u{044b}\u{0442}\u{043a}\u{0443} \u{0438}\u{043b}\u{0438} \u{0432}\u{043e}\u{0441}\u{0441}\u{0442}\u{0430}\u{043d}\u{043e}\u{0432}\u{0438}\u{0442}\u{0435} \u{0441}\u{043b}\u{0443}\u{0436}\u{0431}\u{0443}.",
+            "zh" => "\u{64cd}\u{4f5c}\u{5931}\u{8d25}\u{3002}\u{8bf7}\u{68c0}\u{67e5}\u{8fde}\u{63a5}\u{5e76}\u{91cd}\u{8bd5}\u{ff0c}\u{6216}\u{5728}\u{670d}\u{52a1}\u{4e2d}\u{4fee}\u{590d}\u{670d}\u{52a1}\u{3002}",
+            _ => "\u{0130}\u{015f}lem ba\u{015f}ar\u{0131}s\u{0131}z. Ba\u{011f}lant\u{0131}n\u{0131}z\u{0131} kontrol edip tekrar deneyin veya Hizmetler b\u{00f6}l\u{00fc}m\u{00fc}nden hizmeti onar\u{0131}n.",
+        }.to_owned();
+        if matches!(action, "connect" | "status" | "resume") {
+            self.service_fault = true;
+        }
+        self.notice = message.clone();
+        self.toasts
+            .push((message, self.ui_context.input(|i| i.time)));
+        if self.toasts.len() > 3 {
+            self.toasts.remove(0);
+        }
+        self.ui_context.request_repaint();
+    }
+    fn call(&mut self, a: &str, mut args: Vec<String>, v: Option<Value>) {
         if self.offline {
             self.notice = "Çevrimdışı görünüm: işlem yapılmadı".into();
             return;
+        }
+        if a == "scan" {
+            args.push("--status-only".into());
         }
         let bridge = if a == "goodcheck" {
             &self.scan_bridge
@@ -353,7 +369,8 @@ impl App {
         }
         #[cfg(windows)]
         if let Some(Err(error)) = self.startup.poll() {
-            self.notice = error;
+            Self::log_line(&mut self.local_logs, &error);
+            self.notify_failure("startup");
         }
         while let Ok(reply) = self
             .bridge
@@ -383,7 +400,8 @@ impl App {
             }
             match reply.result {
                 Err(e) => {
-                    self.notice = e;
+                    Self::log_line(&mut self.local_logs, &e);
+                    self.notify_failure(&reply.action);
                     if reply.action == "goodcheck" {
                         self.goodcheck_running = false;
                         self.goodcheck_result = json!({"code":"error","message":self.notice});
@@ -391,340 +409,365 @@ impl App {
                     if reply.action == "logs" {
                         self.logs_error = self.notice.clone();
                     }
-                    if reply.action == "install-service" {
-                        self.setup_installing = false;
-                    }
+
                     self.validating = false;
                     if reply.action == "validate-rule" {
                         self.rule_error = self.notice.clone();
                     }
-                    if reply.action == "prepare-warp" {
-                        self.warp_preparing = false;
-                        self.warp_error = Some(self.notice.clone());
-                        self.connect_after = false;
-                    }
                 }
-                Ok(v) => match reply.action.as_str() {
-                    "load-settings" => {
-                        if valid_settings(&v) {
-                            self.settings = v;
-                            locale::set_language(
-                                self.settings
-                                    .get("language")
-                                    .and_then(Value::as_str)
-                                    .unwrap_or("tr"),
-                            );
-                            locale::apply_fonts(&self.ui_context);
-                            self.settings["connectionMethod"] =
-                                json!(if n(&self.settings, "profile") == 2 {
-                                    1
-                                } else {
-                                    0
-                                });
-                            self.startup_loaded = true;
-                            if self.startup_resume_pending
-                                && !self.scan.is_null()
-                                && b(&self.scan, "serviceReady")
-                            {
-                                self.startup_resume_pending = false;
-                                if b(&self.settings, "autoConnect") && !self.inspect_only {
-                                    self.call("resume", vec![], None);
+                Ok(v) => {
+                    if v.get("success").and_then(Value::as_bool) == Some(false) {
+                        self.notify_failure(&reply.action);
+                    }
+                    match reply.action.as_str() {
+                        "load-settings" => {
+                            if valid_settings(&v) {
+                                self.settings = v;
+                                locale::set_language(
+                                    self.settings
+                                        .get("language")
+                                        .and_then(Value::as_str)
+                                        .unwrap_or("tr"),
+                                );
+                                locale::apply_fonts(&self.ui_context);
+                                self.settings["connectionMethod"] =
+                                    json!(if n(&self.settings, "profile") == 3 {
+                                        2
+                                    } else if n(&self.settings, "profile") == 2 {
+                                        1
+                                    } else {
+                                        0
+                                    });
+                            } else {
+                                if b(&v, "success") {
+                                    self.notice = s(&v, "message");
                                 }
                             }
-                        } else {
-                            self.notice = s(&v, "message");
                         }
-                    }
-                    "scan" => {
-                        self.scan = v;
-                        if self.page == "onboarding"
-                            && self.setup_step == 2
-                            && b(&self.scan, "serviceReady")
-                        {
-                            self.setup_step = 3;
+                        "scan" => {
+                            self.scan = v;
+                            self.service_fault = !b(&self.scan, "serviceReady");
                         }
-                        let initial_scan = self.startup_resume_pending;
-                        let resume = initial_scan && self.startup_loaded;
-                        if resume {
-                            self.startup_resume_pending = false;
-                        }
-                        if !b(&self.scan, "serviceReady") {
-                            if initial_scan && self.page == "connection" {
-                                self.page = "onboarding".into();
+                        "status" => {
+                            self.connected = b(&v, "connected");
+                            if !self.preserve_notice {
+                                if b(&v, "success") {
+                                    self.notice = s(&v, "message");
+                                }
                             }
-                        } else if resume
-                            && self.startup_loaded
-                            && b(&self.settings, "autoConnect")
-                            && !self.inspect_only
-                        {
-                            self.call("resume", vec![], None);
+                            self.preserve_notice = false;
                         }
-                    }
-                    "status" => {
-                        self.connected = b(&v, "connected");
-                        if !self.preserve_notice {
-                            self.notice = s(&v, "message");
+                        "goodcheck" => {
+                            self.goodcheck_running = false;
+                            self.goodcheck_selected = v["results"]
+                                .as_array()
+                                .and_then(|r| r.iter().find(|r| n(r, "successes") > 0))
+                                .map(|r| s(r, "presetId"))
+                                .unwrap_or_default();
+                            self.goodcheck_result = if v["code"].is_null() {
+                                json!({"code":"error","message":s(&v,"message")})
+                            } else {
+                                v
+                            };
                         }
-                        self.preserve_notice = false;
-                    }
-                    "goodcheck" => {
-                        self.goodcheck_running = false;
-                        self.goodcheck_selected = v["results"]
-                            .as_array()
-                            .and_then(|r| r.iter().find(|r| n(r, "successes") > 0))
-                            .map(|r| s(r, "presetId"))
-                            .unwrap_or_default();
-                        self.goodcheck_result = if v["code"].is_null() {
-                            json!({"code":"error","message":s(&v,"message")})
-                        } else {
-                            v
-                        };
-                    }
-                    "install-component" | "remove-component" => {
-                        self.notice = s(&v, "message");
-                        self.call("scan", vec![], None);
-                    }
-                    "presets" => {
-                        self.dpi_presets = v.as_array().cloned().unwrap_or_default();
-                    }
-                    "check-updates" => {
-                        self.update_snapshot = v;
-                    }
-                    "validate-rule" => {
-                        self.validating = false;
-                        self.rule_error = if b(&v, "success") {
-                            String::new()
-                        } else {
-                            s(&v, "message")
-                        };
-                        self.notice = s(&v, "message");
-                        if b(&v, "success") {
-                            if let Some(rule) = self.rule.take() {
-                                let rules = self.settings["rules"].as_array_mut().unwrap();
-                                if let Some(i) = self.rule_index {
-                                    if i < rules.len() {
-                                        rules[i] = rule;
+                        "install-component" | "remove-component" => {
+                            if b(&v, "success") {
+                                self.notice = s(&v, "message");
+                            }
+                            self.call("scan", vec![], None);
+                        }
+                        "presets" => {
+                            self.dpi_presets = v.as_array().cloned().unwrap_or_default();
+                        }
+                        "check-updates" => {
+                            self.update_snapshot = v;
+                        }
+                        "validate-rule" => {
+                            self.validating = false;
+                            self.rule_error = if b(&v, "success") {
+                                String::new()
+                            } else {
+                                self.notice.clone()
+                            };
+                            if b(&v, "success") {
+                                self.notice = s(&v, "message");
+                            }
+                            if b(&v, "success") {
+                                if let Some(rule) = self.rule.take() {
+                                    let rules = self.settings["rules"].as_array_mut().unwrap();
+                                    if let Some(i) = self.rule_index {
+                                        if i < rules.len() {
+                                            rules[i] = rule;
+                                        }
+                                    } else {
+                                        rules.push(rule);
                                     }
-                                } else {
-                                    rules.push(rule);
+                                    self.save();
                                 }
+                            }
+                        }
+                        "connect" | "disconnect" | "resume" => {
+                            if b(&v, "success") {
+                                self.notice = s(&v, "message");
+                            }
+                            self.preserve_notice = !b(&v, "success");
+                            self.call("status", vec![], None);
+                        }
+                        "install-service" => {
+                            if b(&v, "success") {
+                                self.notice = s(&v, "message");
+                            }
+                            self.call("scan", vec![], None);
+                            if b(&v, "success") {
                                 self.save();
                             }
                         }
-                    }
-                    "prepare-warp" => {
-                        self.warp_preparing = false;
-                        self.notice = s(&v, "message");
-                        self.warp_error = if b(&v, "success") {
-                            None
-                        } else {
-                            Some(self.notice.clone())
-                        };
-                        if b(&v, "success") {
-                            self.call("scan", vec![], None);
+                        "clear-logs" => {
+                            self.call("logs", vec![], None);
                         }
-                        if !b(&v, "success") {
-                            self.connect_after = false;
-                        }
-                        if b(&v, "success") && self.connect_after {
-                            self.connect_after = false;
-                            self.page = "connection".into();
-                            self.call("connect", vec![], Some(self.settings.clone()));
-                        }
-                    }
-                    "connect" | "disconnect" | "resume" => {
-                        self.notice = s(&v, "message");
-                        self.preserve_notice = !b(&v, "success");
-                        self.call("status", vec![], None);
-                    }
-                    "install-service" => {
-                        self.notice = s(&v, "message");
-                        self.setup_installing = false;
-                        self.call("scan", vec![], None);
-                        if b(&v, "success") {
-                            self.save();
-                        }
-                    }
-                    "clear-logs" => {
-                        self.call("logs", vec![], None);
-                    }
-                    "logs" => {
-                        if b(&v, "success") {
-                            self.logs_error.clear();
-                            self.backend_logs.clear();
-                            if let Some(lines) = v["lines"].as_array() {
-                                for line in lines {
-                                    if let Some(line) = line.as_str() {
-                                        if self.backend_logs.len() >= 100 {
-                                            self.backend_logs.pop_front();
+                        "logs" => {
+                            if b(&v, "success") {
+                                self.logs_error.clear();
+                                self.backend_logs.clear();
+                                if let Some(lines) = v["lines"].as_array() {
+                                    for line in lines {
+                                        if let Some(line) = line.as_str() {
+                                            if self.backend_logs.len() >= 100 {
+                                                self.backend_logs.pop_front();
+                                            }
+                                            self.backend_logs
+                                                .push_back(line.chars().take(1000).collect());
                                         }
-                                        self.backend_logs
-                                            .push_back(line.chars().take(1000).collect());
                                     }
                                 }
+                            } else {
+                                self.logs_error = self.notice.clone();
                             }
-                        } else {
-                            self.logs_error = s(&v, "message");
                         }
-                    }
-                    "remove-service" => {
-                        self.notice = s(&v, "message");
-                        self.call("scan", vec![], None);
-                    }
-                    "import-wireguard" | "import-warp" => {
-                        self.notice = s(&v, "message");
-                        if b(&v, "success") {
-                            self.call("load-settings", vec![], None);
+                        "remove-service" => {
+                            if b(&v, "success") {
+                                self.notice = s(&v, "message");
+                            }
                             self.call("scan", vec![], None);
                         }
-                    }
-                    "save-settings" => {
-                        if !b(&v, "success") {
-                            self.notice = s(&v, "message");
+                        "import-wireguard" | "import-warp" | "warp-license" => {
+                            if b(&v, "success") {
+                                self.notice = s(&v, "message");
+                            }
+                            if b(&v, "success") {
+                                self.call("load-settings", vec![], None);
+                                self.call("scan", vec![], None);
+                            }
+                        }
+                        "save-settings" => {
+                            if !b(&v, "success") {
+                                if b(&v, "success") {
+                                    self.notice = s(&v, "message");
+                                }
+                            }
+                        }
+                        _ => {
+                            if b(&v, "success") {
+                                self.notice = s(&v, "message");
+                            }
                         }
                     }
-                    _ => {
-                        self.notice = s(&v, "message");
-                    }
-                },
+                }
             }
-        }
-        if !self.offline
-            && !self.inspect_only
-            && !self.warp_attempted
-            && self.startup_loaded
-            && self.scan.is_object()
-            && b(&self.scan, "serviceReady")
-            && n(&self.settings, "profile") == 0
-            && !b(&self.scan, "hasPreparedWarpProfile")
-            && self.pending == 0
-        {
-            self.prepare_warp();
-        }
-    }
-    fn prepare_warp(&mut self) {
-        self.warp_attempted = true;
-        self.warp_error = None;
-        if self.bridge.call(
-            "prepare-warp",
-            vec!["--accept-cloudflare-terms".into()],
-            None,
-        ) {
-            self.pending += 1;
-            self.warp_preparing = true;
-            self.notice = "Cloudflare hesabı hazırlanıyor…".into();
-        } else {
-            self.warp_error = Some("Cloudflare hesabı hazırlama işlemi başlatılamadı.".into());
         }
     }
     fn connection(&mut self, ui: &mut egui::Ui) {
-        title(ui, "Senin ağın, senin kuralların", "Bağlantın kontrolünde.");
+        title(ui, "Genel bakış", "Bağlantın kontrolünde.");
+        ui.label(
+            RichText::new(locale::tr(
+                "Nasıl bağlanacağını seç ve tek dokunuşla başla.",
+            ))
+            .size(15.)
+            .color(SUB),
+        );
+        ui.add_space(24.);
         let profile = n(&self.settings, "profile");
-        card(ui, |ui| {
-            ui.set_min_width(ui.available_width());
-            ui.vertical_centered(|ui| {
-                ui.add_space(10.);
-                let (r, response) = ui.allocate_exact_size(Vec2::splat(92.), egui::Sense::click());
-                let c = r.center();
-                let p = ui.painter();
-                p.circle_stroke(c, 44., Stroke::new(1.0_f32, LINE));
-                p.circle_filled(c, 34., SOFT);
-                p.circle_stroke(c, 34., Stroke::new(1.0_f32, ACCENT));
-                let points: Vec<_> = (0..=40)
-                    .map(|i| {
-                        let a = 0.65 + i as f32 / 40. * (std::f32::consts::TAU - 1.3);
-                        c + Vec2::new(a.sin() * 13., -a.cos() * 13.)
-                    })
-                    .collect();
-                p.add(egui::Shape::line(points, Stroke::new(2.0_f32, ACCENT)));
-                p.line_segment(
-                    [c + Vec2::new(0., -18.), c + Vec2::new(0., -1.)],
-                    Stroke::new(2.0_f32, ACCENT),
-                );
-                if response
-                    .on_hover_text(locale::tr("Bağlan / bağlantıyı kes"))
-                    .clicked()
-                    && self.pending == 0
-                {
-                    if self.connected {
-                        self.call("disconnect", vec![], None);
-                    } else if !b(&self.scan, "serviceReady") && !self.offline {
-                        self.page = "onboarding".into();
-                    } else if profile == 3 && !self.scan["components"].as_array().is_some_and(|items| items.iter().any(|item| s(item, "name") == "Zapret" && b(item, "installed"))) {
-                        self.page = "services".into();
-                        self.notice = locale::tr("Zapret deste\u{011f}i i\u{00e7}in Hizmetler ekran\u{0131}ndan hizmeti kur / onar. Kurulu hizmet eski veya Zapret dosyalar\u{0131} eksik.").into();
-                        self.preserve_notice = true;
-                    } else if profile == 0 && !b(&self.scan, "hasPreparedWarpProfile") {
-                        self.connect_after = true;
-                        self.page = "profiles".into();
-                    } else {
-                        self.call("connect", vec![], Some(self.settings.clone()));
-                    }
-                }
-                ui.add_space(6.);
-                ui.label(
-                    RichText::new(locale::tr(if self.pending > 0 {
-                        "İşlem sürüyor…"
-                    } else if self.connected {
-                        "Motor çalışıyor."
-                    } else {
-                        "Bağlanmaya hazırsın."
-                    }))
-                    .size(21.)
-                    .strong(),
-                );
-                small(
-                    ui,
-                    if self.connected {
-                        "Bağlantı motoru etkin"
-                    } else {
-                        "Bağlantı kapalı"
-                    },
-                );
-                ui.add_space(12.);
-            });
-            ui.separator();
-            ui.add_space(5.);
-            ui.horizontal(|ui| {
-                widgets::icon(
-                    ui,
-                    if profile == 0 { "cloud" } else { "profiles" },
-                    if profile == 0 {
-                        Color32::from_rgb(225, 139, 53)
-                    } else {
-                        ACCENT
-                    },
-                    32.,
-                );
-                ui.vertical(|ui| {
-                    ui.label(
-                        RichText::new(locale::tr(match profile {
-                            1 => "Özel WireGuard Profili",
-                            2 => "DPI aşma",
-                            3 => "Zapret",
-                            _ => "Cloudflare WARP",
-                        }))
-                        .size(13.)
-                        .strong(),
+        egui::Frame::new()
+            .fill(PANEL)
+            .stroke(Stroke::new(1_f32, LINE))
+            .corner_radius(16)
+            .inner_margin(36)
+            .show(ui, |ui| {
+                ui.set_min_width(ui.available_width());
+                ui.set_min_height(205.);
+                ui.set_max_height(205.);
+                ui.horizontal_centered(|ui| {
+                    let text_width = (ui.available_width() - 180.).max(100.);
+                    ui.allocate_ui_with_layout(
+                        Vec2::new(text_width, 130.),
+                        egui::Layout::top_down(egui::Align::LEFT),
+                        |ui| {
+                            ui.add_space(13.);
+                            ui.label(
+                                RichText::new(locale::tr(if self.connected {
+                                    "\u{25cf}  Ba\u{011f}l\u{0131}"
+                                } else {
+                                    "\u{25cf}  Ba\u{011f}l\u{0131} de\u{011f}il"
+                                }))
+                                .size(13.)
+                                .color(SUB),
+                            );
+                            ui.add_space(12.);
+                            ui.label(
+                                RichText::new(locale::tr(if self.connected {
+                                    "Bağlantı etkin."
+                                } else {
+                                    "Hazır olduğunda bağlan."
+                                }))
+                                .font(egui::FontId::new(
+                                    27.,
+                                    egui::FontFamily::Name("bold".into()),
+                                ))
+                                .color(INK),
+                            );
+                            ui.add_space(10.);
+                            ui.label(
+                                RichText::new(locale::tr(
+                                    "Seçtiğin profil ile trafiğini yönlendir.",
+                                ))
+                                .size(15.)
+                                .color(SUB),
+                            );
+                        },
                     );
-                    small(ui, "Seçili profil");
-                });
-                ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                    if button(ui, "Değiştir", false) {
-                        self.page = "profiles".into();
+                    ui.add_space((ui.available_width() - 130.).max(0.));
+                    let (r, response) =
+                        ui.allocate_exact_size(Vec2::splat(130.), egui::Sense::click());
+                    let c = r.center();
+                    let p = ui.painter();
+                    for i in (0..24).rev() {
+                        let t = (24 - i) as f32 / 24.;
+                        p.circle_filled(
+                            c,
+                            70. + i as f32,
+                            Color32::from_rgb(
+                                16 + (14. * t) as u8,
+                                17 + (9. * t) as u8,
+                                21 + (23. * t) as u8,
+                            ),
+                        );
+                    }
+                    p.circle_filled(c, 74., Color32::from_rgb(30, 27, 39));
+                    p.circle_filled(c, 68., Color32::from_rgb(38, 33, 49));
+                    widgets::power_gradient(p, c, 64., response.hovered());
+                    let points: Vec<_> = (0..=40)
+                        .map(|i| {
+                            let a = 0.65 + i as f32 / 40. * (std::f32::consts::TAU - 1.3);
+                            c + Vec2::new(a.sin() * 16., -a.cos() * 16.)
+                        })
+                        .collect();
+                    p.add(egui::Shape::line(points, Stroke::new(3_f32, BG)));
+                    p.line_segment(
+                        [c + Vec2::new(0., -22.), c + Vec2::new(0., -2.)],
+                        Stroke::new(3_f32, BG),
+                    );
+                    if response
+                        .on_hover_text(locale::tr("Bağlan / bağlantıyı kes"))
+                        .clicked()
+                        && self.pending == 0
+                    {
+                        if self.connected {
+                            self.call("disconnect", vec![], None);
+                        } else if !self.scan.is_null()
+                            && !b(&self.scan, "serviceReady")
+                            && !self.offline
+                        {
+                            self.page = "services".into();
+                            self.service_fault = true;
+                            self.notify_failure("connect");
+                        } else if !self.scan.is_null()
+                            && (profile == 2 || profile == 3)
+                            && !self.scan["components"].as_array().is_some_and(|items| {
+                                items.iter().any(|item| {
+                                    s(item, "name")
+                                        == if profile == 3 { "Zapret" } else { "ByeDPI" }
+                                        && b(item, "installed")
+                                })
+                            })
+                        {
+                            self.page = "services".into();
+                            self.notify_failure("connect");
+                            self.preserve_notice = true;
+                        } else if !self.scan.is_null()
+                            && profile == 0
+                            && !b(&self.scan, "hasPreparedWarpProfile")
+                        {
+                            self.page = "profiles".into();
+                        } else {
+                            self.call("connect", vec![], Some(self.settings.clone()));
+                        }
                     }
                 });
             });
-        });
+        ui.add_space(14.);
         let locked = self.connected || self.pending != 0;
         ui.add_enabled_ui(!locked, |ui| {
+            ui.label(
+                RichText::new(locale::tr("Bağlantı yöntemi"))
+                    .size(13.)
+                    .strong()
+                    .color(SUB),
+            );
+            ui.add_space(0.);
+            let mut method = match profile {
+                2 => 1,
+                3 => 2,
+                _ => 0,
+            };
+            let before = method;
+            ui.scope(|ui| {
+                ui.spacing_mut().interact_size.y = 48.;
+                ui.spacing_mut().button_padding.y = 8.;
+                egui::ComboBox::from_id_salt("connection-method")
+                    .width(ui.available_width())
+                    .selected_text(["WireGuard", "ByeDPI", "Zapret"][method])
+                    .show_ui(ui, |ui| {
+                        for (i, label) in ["WireGuard", "ByeDPI", "Zapret"].iter().enumerate() {
+                            ui.selectable_value(&mut method, i, *label);
+                        }
+                    });
+            });
+            if method != before {
+                self.settings["profile"] = json!(match method {
+                    1 => 2,
+                    2 => 3,
+                    _ => 0,
+                });
+                self.settings["connectionMethod"] = json!(method);
+                self.save();
+            }
+            ui.add_space(12.);
+            ui.horizontal(|ui| {
+                ui.label(
+                    RichText::new(locale::tr("Yapılandırmayı değiştirmek mi istiyorsun?"))
+                        .color(SUB),
+                );
+                if ui
+                    .link(RichText::new(locale::tr("Profilleri düzenle →")).color(ACCENT))
+                    .clicked()
+                {
+                    self.page = "profiles".into();
+                }
+            });
             ui.add_space(15.);
             ui.label(
-                RichText::new(locale::tr("Trafik yönlendirme"))
-                    .size(14.)
-                    .strong(),
+                RichText::new(locale::tr("Trafik yönlendirme")).font(egui::FontId::new(
+                    21.,
+                    egui::FontFamily::Name("bold".into()),
+                )),
             );
-            ui.add_space(5.);
+            ui.add_space(8.);
+            ui.label(
+                RichText::new(locale::tr("Uygulamalar için bağlantı kurallarını seç."))
+                    .size(15.)
+                    .color(SUB),
+            );
+            ui.add_space(18.);
             if let Some(scope) = widgets::segments(
                 ui,
                 "scope",
@@ -735,9 +778,7 @@ impl App {
                 self.save();
             }
             ui.add_space(9.);
-            if n(&self.settings, "scope") == 0 {
-                return;
-            }
+
             let rules = self.settings["rules"]
                 .as_array()
                 .cloned()
@@ -754,21 +795,34 @@ impl App {
                         }
                         card(ui, |ui| {
                             ui.set_min_width(ui.available_width());
-                            ui.set_min_height(43.);
+                            ui.set_min_height(62.);
+                            ui.spacing_mut().item_spacing.x = 12.;
                             if i == rules.len() {
-                                if ui
-                                    .add_sized(
-                                        [ui.available_width(), 43.],
-                                        egui::Button::new(
-                                            RichText::new(locale::tr("+  Kural ekle"))
-                                                .size(12.)
-                                                .color(SUB),
-                                        )
-                                        .fill(PANEL)
-                                        .stroke(Stroke::NONE),
-                                    )
-                                    .clicked()
-                                {
+                                let (r, response) = ui.allocate_exact_size(
+                                    Vec2::new(ui.available_width(), 62.),
+                                    egui::Sense::click(),
+                                );
+                                let icon = egui::Rect::from_center_size(
+                                    r.left_center() + Vec2::new(23., 0.),
+                                    Vec2::splat(46.),
+                                );
+                                ui.painter()
+                                    .rect_filled(icon, 10., Color32::from_rgb(39, 36, 52));
+                                ui.painter().text(
+                                    icon.center(),
+                                    egui::Align2::CENTER_CENTER,
+                                    "+",
+                                    egui::FontId::proportional(25.),
+                                    ACCENT,
+                                );
+                                ui.painter().text(
+                                    r.left_center() + Vec2::new(58., 0.),
+                                    egui::Align2::LEFT_CENTER,
+                                    locale::tr("Kural ekle"),
+                                    egui::FontId::new(15., egui::FontFamily::Name("bold".into())),
+                                    INK,
+                                );
+                                if response.clicked() {
                                     add = true;
                                 }
                                 return;
@@ -776,8 +830,9 @@ impl App {
                             let rule = &rules[i];
                             ui.horizontal(|ui| {
                                 let (r, _) =
-                                    ui.allocate_exact_size(Vec2::splat(30.), egui::Sense::hover());
-                                ui.painter().rect_filled(r, 8., BG);
+                                    ui.allocate_exact_size(Vec2::splat(46.), egui::Sense::hover());
+                                ui.painter()
+                                    .rect_filled(r, 10., Color32::from_rgb(39, 36, 52));
                                 let label = rule_display_name(rule);
                                 let initial = if n(rule, "type") < 5 {
                                     "IP".to_owned()
@@ -796,20 +851,28 @@ impl App {
                                     egui::FontId::proportional(12.),
                                     INK,
                                 );
-                                let controls = 49.;
+                                let controls = 80.;
                                 let label_width = (ui.available_width() - controls - 8.).max(30.);
                                 ui.allocate_ui_with_layout(
                                     Vec2::new(label_width, 36.),
                                     egui::Layout::top_down(egui::Align::LEFT),
                                     |ui| {
+                                        ui.set_min_width(label_width);
                                         ui.add(
                                             egui::Label::new(
-                                                RichText::new(label).size(12.).strong(),
+                                                RichText::new(label).size(15.).strong(),
                                             )
                                             .truncate(),
                                         )
                                         .on_hover_text(s(rule, "value"));
-                                        small(ui, types(n(rule, "type")));
+                                        small(
+                                            ui,
+                                            if n(rule, "type") == 5 {
+                                                "Uygulama"
+                                            } else {
+                                                types(n(rule, "type"))
+                                            },
+                                        );
                                     },
                                 );
                                 let mut enabled = b(rule, "enabled");
@@ -856,28 +919,28 @@ impl App {
     }
     fn settings_page(&mut self, ui: &mut egui::Ui) {
         title(ui, "Tercihler", "Ayarlar");
-        small(ui, "WGTun\u{2019}u kendine g\u{00f6}re ayarla.");
-        if settings_view::general(ui, &mut self.settings) {
-            self.save();
-        }
+        small(ui, "OpenPrism\u{2019}i kendine g\u{00f6}re ayarla.");
         settings_view::section(ui, "Ba\u{015f}lang\u{0131}\u{00e7}");
         card(ui, |ui| {
-            #[cfg(windows)]
-            {
-                let mut enabled = self.startup.enabled.unwrap_or(false);
-                if settings_view::toggle(ui, "Windows ile ba\u{015f}lat", "Bilgisayar\u{0131}n\u{0131} a\u{00e7}t\u{0131}\u{011f}\u{0131}nda WGTun da a\u{00e7}\u{0131}ls\u{0131}n.", &mut enabled,
-                    self.startup.enabled.is_some() && !self.startup.pending && !self.offline) {
-                    if let Err(error) = self.startup.set(enabled) { self.notice = error; }
-                }
-            }
-            ui.separator();
             let mut auto = b(&self.settings, "autoConnect");
-            if settings_view::toggle(ui, "Otomatik ba\u{011f}lan", "Windows a\u{00e7}\u{0131}l\u{0131}\u{015f}\u{0131}nda son kullan\u{0131}lan profille ba\u{011f}lan.", &mut auto, self.pending == 0) {
+            if settings_view::toggle(ui, "Hizmeti başlat ve son profile bağlan", "Windows a\u{00e7}\u{0131}l\u{0131}\u{015f}\u{0131}nda son kullan\u{0131}lan profille ba\u{011f}lan.", &mut auto, self.pending == 0) {
                 self.settings["autoConnect"] = json!(auto);
                 self.save();
                 self.call("startup", vec![], Some(json!({"enabled": auto})));
             }
+            ui.separator();
+            #[cfg(windows)]
+            {
+                let mut enabled = self.startup.enabled.unwrap_or(false);
+                if settings_view::toggle(ui, "Arayüzü başlat", "Bilgisayar\u{0131}n\u{0131} a\u{00e7}t\u{0131}\u{011f}\u{0131}nda OpenPrism da a\u{00e7}\u{0131}ls\u{0131}n.", &mut enabled,
+                    self.startup.enabled.is_some() && !self.startup.pending && !self.offline) {
+                    if let Err(error) = self.startup.set(enabled) { Self::log_line(&mut self.local_logs, &error); self.notify_failure("startup"); }
+                }
+            }
         });
+        if settings_view::general(ui, &mut self.settings) {
+            self.save();
+        }
         settings_view::section(ui, "Diagnostics");
         if ui
             .add_enabled(
@@ -918,300 +981,87 @@ impl App {
     }
     fn services(&mut self, ui: &mut egui::Ui) {
         title(ui, "Sistem", "Hizmetler");
+        ui.label(
+            RichText::new(locale::tr("Bağlantı bileşenlerini kur, onar veya kaldır."))
+                .size(15.)
+                .color(SUB),
+        );
+        ui.add_space(26.);
         let installed = b(&self.scan, "serviceInstalled");
-        if ui
-            .add_enabled(
-                self.pending == 0 && !self.connected,
-                egui::Button::new(locale::tr(if installed {
-                    "Hizmeti kur / onar"
-                } else {
-                    "Hizmeti kur"
-                })),
-            )
-            .clicked()
-        {
-            self.call("install-service", vec!["core".into()], None);
-        }
-        ui.add_space(12.);
         card(ui, |ui| {
-            for name in [
-                "WGTun",
-                "sing-box",
-                "Capture",
-                "Windows Packet Filter",
-                "ByeDPI",
-                "Zapret",
-            ] {
-                if name != "WGTun" {
+            for (index, name) in ["OpenPrism", "ByeDPI", "Zapret"].iter().enumerate() {
+                if index > 0 {
                     ui.separator();
                 }
-                let component = self.scan["components"]
-                    .as_array()
-                    .and_then(|items| items.iter().find(|item| s(item, "name") == name))
-                    .cloned()
-                    .unwrap_or_default();
-                let present = if name == "WGTun" {
+                let present = if index == 0 {
                     installed
                 } else {
-                    b(&component, "installed")
+                    self.scan["components"].as_array().is_some_and(|items| {
+                        items
+                            .iter()
+                            .any(|item| s(item, "name") == *name && b(item, "installed"))
+                    })
                 };
                 ui.horizontal(|ui| {
-                    ui.strong(if name == "Capture" {
-                        locale::tr("Uygulama yakalama")
-                    } else {
-                        name
-                    });
-                    let version = s(&component, "version");
-                    if !version.is_empty() {
-                        small(ui, &format!("v{version}"));
-                    }
-                    if ["ByeDPI", "Zapret"].contains(&name)
-                        && installed
-                        && ui
-                            .add_enabled(
-                                self.pending == 0 && !self.connected,
-                                egui::Button::new(locale::tr(if present {
-                                    "Kaldır"
+                    ui.set_min_height(64.);
+                    let name_width = ui.available_width() * 0.36;
+                    ui.allocate_ui_with_layout(
+                        Vec2::new(name_width, 42.),
+                        egui::Layout::top_down(egui::Align::LEFT),
+                        |ui| {
+                            ui.set_min_width(name_width);
+                            ui.label(RichText::new(*name).font(egui::FontId::new(
+                                15.,
+                                egui::FontFamily::Name("bold".into()),
+                            )));
+                            small(
+                                ui,
+                                if index == 0 {
+                                    "Bağlantı hizmeti"
                                 } else {
-                                    "Kur"
-                                })),
+                                    "Bağlantı bileşeni"
+                                },
+                            );
+                        },
+                    );
+                    ui.label(
+                        RichText::new(locale::tr(if present { "Kurulu" } else { "Kurulu değil" }))
+                            .color(if present {
+                                SUB
+                            } else {
+                                Color32::from_rgb(239, 201, 131)
+                            }),
+                    );
+                    ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+                        let enabled = self.pending == 0 && !self.connected && !self.offline;
+                        if present && widgets::removal_button(ui, "Kaldır", enabled).clicked()
+                        {
+                            if index == 0 {
+                                self.remove_confirm = true;
+                            } else {
+                                self.call("remove-component", vec![name.to_lowercase()], None);
+                            }
+                        }
+                        if (index != 0 || present) && ui
+                            .add_enabled(
+                                enabled,
+                                egui::Button::new(locale::tr(if present { "Onar" } else { "Kur" })),
                             )
                             .clicked()
-                    {
-                        self.call(
-                            if present {
-                                "remove-component"
+                        {
+                            if index == 0 {
+                                self.call("install-service", vec!["core".into()], None);
                             } else {
-                                "install-component"
-                            },
-                            vec![name.to_lowercase()],
-                            None,
-                        );
-                    }
-                    ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                        small(
-                            ui,
-                            if b(&component, "running") {
-                                "Çalışıyor"
-                            } else if present {
-                                "Hazır"
-                            } else {
-                                "Kurulu değil"
-                            },
-                        );
-                    });
-                });
-                if !present {
-                    small(ui, &s(&component, "message"));
-                }
-            }
-        });
-    }
-    fn service_actions(&mut self, ui: &mut egui::Ui) {
-        let installed = b(&self.scan, "serviceInstalled");
-        ui.add_space(16.);
-        small(ui, "WGTun hizmeti, sing-box ve uygulama yakalama bileşeni gereklidir; tüm hizmetleri kaldır işlemiyle kaldırılır.");
-        ui.add_space(8.);
-        ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-            if ui
-                .add_enabled(
-                    self.pending == 0 && installed && !self.connected,
-                    egui::Button::new(locale::tr("Tüm hizmetleri kaldır")),
-                )
-                .clicked()
-            {
-                self.remove_confirm = true;
-            }
-        });
-    }
-    fn onboarding(&mut self, ui: &mut egui::Ui) {
-        let locked = self.connected;
-        ui.add_enabled_ui(!locked, |ui| {
-        title(ui, "İlk kurulum", "OpenPrism'e hoş geldin");
-        small(ui, &format!("{} {} / 4", locale::tr("Adım"), self.setup_step + 1));
-        ui.add_space(10.);
-        card(ui, |ui| match self.setup_step {
-            0 => {
-                ui.strong(locale::tr("Bağlantı yöntemini seç"));
-                small(ui, "WireGuard, varsayılan olarak Cloudflare WARP kullanır. ByeDPI alternatif bir yöntemdir.");
-                if let Some(method) = widgets::segments(
-                    ui,
-                    "setup-method",
-                    &["WireGuard", "ByeDPI", "Zapret"],
-                    match n(&self.settings, "profile") { 2 => 1, 3 => 2, _ => 0 },
-                ) {
-                    self.settings["profile"] = json!(match method { 0 => 0, 1 => 2, _ => 3 });
-                    self.settings["connectionMethod"] = json!(method);
-                    self.save();
-                }
-                if button(ui, "Devam", true) {
-                    self.setup_step = 1;
-                }
-            }
-            1 => {
-                ui.strong(locale::tr("Hangi trafik yönlendirilsin?"));
-                if let Some(scope) = widgets::segments(
-                    ui,
-                    "setup-scope",
-                    &["Tüm trafik", "Seçilenler"],
-                    usize::from(n(&self.settings, "scope") != 0),
-                ) {
-                    self.settings["scope"] = json!(scope);
-                    self.save();
-                }
-                if n(&self.settings, "scope") != 0 {
-                    let rules = self.settings["rules"]
-                        .as_array()
-                        .cloned()
-                        .unwrap_or_default();
-                    let selected = rules.iter().filter(|rule| b(rule, "enabled")).count();
-                    ui.add_space(8.);
-                    ui.horizontal(|ui| {
-                        ui.label(
-                            RichText::new(locale::tr("Uygulamalar ve kurallar"))
-                                .size(12.)
-                                .strong(),
-                        );
-                        ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                            ui.label(
-                                RichText::new(format!("{selected} / {} {}", rules.len(), locale::tr("seçili")))
-                                    .size(11.)
-                                    .color(if selected > 0 { ACCENT } else { SUB }),
-                            );
-                        });
-                    });
-                    let mut changes = Vec::new();
-                    let mut edit = None;
-                    egui::ScrollArea::vertical().id_salt("setup_rule_list").max_height(280.).show(ui, |ui| {
-                        for (index, rule) in rules.iter().enumerate() {
-                            let enabled = b(rule, "enabled");
-                            egui::Frame::new().fill(BG).stroke(Stroke::new(1_f32, if enabled { SOFT } else { LINE })).corner_radius(8).inner_margin(10).show(ui, |ui| {
-                                ui.set_min_width(ui.available_width());
-                                ui.horizontal(|ui| {
-                                    let (tile, _) = ui.allocate_exact_size(Vec2::splat(32.), egui::Sense::hover());
-                                    ui.painter().rect_filled(tile, 8, if enabled { SOFT } else { PANEL });
-                                    let label = rule_display_name(rule);
-                                    let initial = if n(rule, "type") < 5 { "IP".to_owned() } else { label.chars().next().unwrap_or('A').to_uppercase().to_string() };
-                                    ui.painter().text(tile.center(), egui::Align2::CENTER_CENTER, initial, egui::FontId::proportional(12.), if enabled { ACCENT } else { SUB });
-                                    let width = (ui.available_width() - 64.).max(40.);
-                                    ui.allocate_ui_with_layout(Vec2::new(width, 38.), egui::Layout::top_down(egui::Align::LEFT), |ui| {
-                                        ui.add(egui::Label::new(RichText::new(label).size(13.).color(INK)).truncate()).on_hover_text(s(rule, "value"));
-                                        ui.add(egui::Label::new(RichText::new(format!("{} · {}", types(n(rule, "type")), s(rule, "value"))).size(10.).color(SUB)).truncate()).on_hover_text(s(rule, "value"));
-                                    });
-                                    let mut value = enabled;
-                                    if widgets::toggle(ui, &mut value).changed() { changes.push((index, value)); }
-                                    let (rect, response) = ui.allocate_exact_size(Vec2::splat(18.), egui::Sense::click());
-                                    widgets::draw_icon(ui.painter(), rect.center(), "pencil", SUB);
-                                    if response.on_hover_text(locale::tr("Düzenle")).clicked() { edit = Some(index); }
-                                });
-                            });
-                            ui.add_space(3.);
+                                self.call("install-component", vec![name.to_lowercase()], None);
+                            }
                         }
-                        if rules.is_empty() {
-                            ui.add_space(12.);
-                            small(ui, "Henüz kural yok. Bir uygulama, klasör veya IP ekleyerek başla.");
-                            ui.add_space(12.);
+                        if index == 0 && !present {
+                            small(ui, "Hizmeti OpenPrism Kurulumu ile yükle.");
                         }
                     });
-                    if !changes.is_empty() {
-                        for (index, enabled) in changes {
-                            self.settings["rules"][index]["enabled"] = json!(enabled);
-                        }
-                        self.save();
-                    }
-                    if let Some(index) = edit {
-                        self.rule = Some(rules[index].clone());
-                        self.rule_index = Some(index);
-                        self.rule_error.clear();
-                    }
-                    ui.add_space(6.);
-                    if button(ui, "+  Kural ekle", false) {
-                        self.add_rule();
-                    }
-                    if selected == 0 {
-                        small(ui, "Devam etmek için en az bir kuralı aç.");
-                    }
-                }
-                ui.horizontal(|ui| {
-                    if button(ui, "Geri", false) {
-                        self.setup_step = 0;
-                    }
-                    let valid = n(&self.settings, "scope") == 0
-                        || self.settings["rules"]
-                            .as_array()
-                            .is_some_and(|r| r.iter().any(|x| b(x, "enabled")));
-                    if ui
-                        .add_enabled(
-                            valid && !self.validating,
-                            egui::Button::new(locale::tr("Devam")),
-                        )
-                        .clicked()
-                    {
-                        self.setup_step = 2;
-                    }
                 });
             }
-            2 => {
-                ui.strong(locale::tr("Gerekli bileşenleri kur"));
-                small(ui, "Kurulum gerekli dosyaları otomatik indirir ve Windows bir kez yönetici izni isteyebilir.");
-                small(
-                    ui,
-                    if b(&self.scan, "serviceReady") {
-                        "Hizmet hazır"
-                    } else {
-                        "Hizmet kurulumu gerekli"
-                    },
-                );
-                small(
-                    ui,
-                    if b(&self.scan, "dependencyReady") {
-                        "Motor hazır"
-                    } else {
-                        "Motor kurulumu gerekli"
-                    },
-                );
-                if self.setup_installing {
-                    ui.spinner();
-                    small(ui, &self.notice);
-                }
-                ui.horizontal(|ui| {
-                    if ui
-                        .add_enabled(
-                            !self.setup_installing,
-                            egui::Button::new(locale::tr("Geri")),
-                        )
-                        .clicked()
-                    {
-                        self.setup_step = 1;
-                    }
-                    if ui
-                        .add_enabled(
-                            self.pending == 0 && !self.setup_installing,
-                            egui::Button::new(locale::tr("Kurulumu başlat")),
-                        )
-                        .clicked()
-                    {
-                        self.setup_installing = true;
-                        self.call("install-service", vec![match n(&self.settings, "profile") { 2 => "byedpi", 3 => "zapret", _ => "core" }.into()], None);
-                        if self.offline {
-                            self.setup_installing = false;
-                        }
-                    }
-                });
-            }
-            _ => {
-                ui.strong(locale::tr("Hizmet hazır"));
-                small(
-                    ui,
-                    "Kurulum tamamlandı. Bağlantı sayfasından devam edebilirsin.",
-                );
-                if button(ui, "Bağlantıya geç", true) {
-                    self.page = "connection".into();
-                }
-            }
         });
-        });
-        self.routing_lock_notice(ui);
     }
     fn logs_page(&mut self, ui: &mut egui::Ui) {
         let mut detailed = b(&self.settings, "detailedLogs");
@@ -1284,9 +1134,6 @@ impl App {
                 }
                 rule_editor::Action::None => {}
             }
-        }
-        if self.dpi_dialog {
-            self.dpi_config(ctx);
         }
         if self.remove_confirm {
             egui::Window::new(locale::tr("Hizmeti kaldır"))
@@ -1387,44 +1234,25 @@ impl App {
             }
         }
         egui::SidePanel::left("sidebar")
-            .exact_width(190.)
+            .exact_width(252.)
             .frame(
                 egui::Frame::new()
-                    .fill(PANEL)
+                    .fill(BG)
                     .stroke(Stroke::new(1_f32, LINE))
-                    .inner_margin(12),
+                    .inner_margin(22),
             )
             .show(ctx, |ui| {
-                ui.add_space(15.);
-                let mut word = egui::text::LayoutJob::default();
-                word.append(
-                    "Open",
-                    0.,
-                    egui::TextFormat {
-                        font_id: egui::FontId::proportional(24.),
-                        color: INK,
-                        ..Default::default()
-                    },
-                );
-                word.append(
-                    "Prism",
-                    0.,
-                    egui::TextFormat {
-                        font_id: egui::FontId::proportional(24.),
-                        color: ACCENT,
-                        ..Default::default()
-                    },
-                );
+                ui.add_space(26.);
+                ui.spacing_mut().item_spacing.y = 0.;
                 ui.horizontal(|ui| {
-                    ui.label(word);
-                    widgets::icon(ui, "arrow", ACCENT, 18.);
+                    widgets::icon(ui, "prism", ACCENT, 36.);
+                    ui.label(branding::wordmark(egui::FontId::new(22., egui::FontFamily::Name("bold".into()))));
                 });
-                ui.add_space(22.);
+                ui.add_space(54.);
                 for (id, label) in [
                     ("connection", "Bağlantı"),
                     ("profiles", "Profiller"),
                     ("services", "Hizmetler"),
-                    ("logs", "Loglar"),
                     ("settings", "Ayarlar"),
                 ] {
                     if widgets::nav(ui, id, label, self.page == id) {
@@ -1436,34 +1264,48 @@ impl App {
                         }
                         self.page = id.into();
                     }
-                    ui.add_space(4.);
+                    ui.add_space(6.);
                 }
-                ui.with_layout(egui::Layout::bottom_up(egui::Align::LEFT), |ui| {
-                    small(
-                        ui,
-                        if b(&self.scan, "serviceReady") {
-                            "● Hizmet hazır"
-                        } else {
-                            "● Hizmet hazır değil"
-                        },
-                    );
-                });
             });
         egui::CentralPanel::default()
             .frame(
                 egui::Frame::new()
                     .fill(BG)
-                    .inner_margin(egui::Margin::symmetric(24, 18)),
+                    .inner_margin(egui::Margin { left: 63, right: 33, top: 68, bottom: 24 }),
             )
             .show(ctx, |ui| {
-                if self.page == "services" {
-                    egui::TopBottomPanel::bottom("service_actions")
-                        .frame(
-                            egui::Frame::new()
-                                .fill(BG)
-                                .inner_margin(egui::Margin::symmetric(0, 8)),
-                        )
-                        .show_inside(ui, |ui| self.service_actions(ui));
+                if self.service_fault {
+                    egui::Frame::new().fill(Color32::from_rgb(90, 32, 37)).inner_margin(10).show(ui, |ui| {
+                        ui.set_min_width(ui.available_width());
+                        ui.horizontal_wrapped(|ui| {
+                            ui.label(locale::tr("Hizmete ula\u{015f}\u{0131}lam\u{0131}yor. OpenPrism hizmetini kurun veya onar\u{0131}n."));
+                            if ui.button(locale::tr("Hizmetler")).clicked() { self.page = "services".into(); }
+                        });
+                    });
+                }
+                if !self.toasts.is_empty() {
+                    egui::TopBottomPanel::bottom("toast_stack").resizable(false).show_inside(ui, |ui| {
+                        let mut remove = None;
+                        for (index, (message, started)) in self.toasts.iter().enumerate() {
+                            let age = (ui.input(|i| i.time) - started).max(0.0);
+                            let alpha = ((age * 5.0).min(1.0) * ((10.0 - age) * 3.0).clamp(0.0, 1.0)) as f32;
+                            egui::Frame::new().fill(Color32::from_rgba_unmultiplied(36, 32, 36, (255.0 * alpha) as u8)).stroke(Stroke::new(1_f32, Color32::from_rgb(103,64,71))).inner_margin(12).corner_radius(10).show(ui, |ui| {
+                                ui.horizontal_top(|ui| {
+                                    ui.colored_label(Color32::from_rgb(255,133,138), "●");
+                                    let width = (ui.available_width() - 36.).max(100.);
+                                    ui.allocate_ui_with_layout(Vec2::new(width, 0.), egui::Layout::top_down(egui::Align::LEFT), |ui| {
+                                        ui.set_min_width(width);
+                                        ui.label(RichText::new(locale::tr("İşlem başarısız")).font(egui::FontId::new(12.,egui::FontFamily::Name("bold".into()))));
+                                        ui.label(RichText::new(message).size(12.).color(Color32::from_rgb(193,171,176)));
+                                        if ui.link(RichText::new(locale::tr("Hizmetler →")).size(12.).color(Color32::from_rgb(240,184,189))).clicked() { self.page = "services".into(); }
+                                    });
+                                    if ui.button("×").clicked() { remove = Some(index); }
+                                });
+                            });
+                            if age >= 10.0 { remove = Some(index); } else { ui.ctx().request_repaint_after(std::time::Duration::from_millis(32)); }
+                        }
+                        if let Some(index) = remove { self.toasts.remove(index); }
+                    });
                 }
                 egui::ScrollArea::vertical()
                     .auto_shrink([false, false])
@@ -1472,12 +1314,12 @@ impl App {
                             "profiles" => self.profiles(ui),
                             "settings" => self.settings_page(ui),
                             "services" => self.services(ui),
-                            "onboarding" => self.onboarding(ui),
+                            "onboarding" => self.services(ui),
                             "logs" => self.logs_page(ui),
                             _ => self.connection(ui),
                         }
                         ui.add_space(10.);
-                        small(ui, &self.notice);
+
                     });
             });
         self.dialogs(ctx);
@@ -1494,15 +1336,7 @@ impl egui_software_backend::App for App {
     }
 }
 fn app_icon() -> egui::IconData {
-    let image = image::load_from_memory(include_bytes!("../../../assets/icon.png"))
-        .expect("embedded prism icon")
-        .into_rgba8();
-    let (width, height) = image.dimensions();
-    egui::IconData {
-        rgba: image.into_raw(),
-        width,
-        height,
-    }
+    branding::window_icon()
 }
 fn main() -> eframe::Result {
     let args: Vec<String> = std::env::args().collect();
@@ -1521,7 +1355,7 @@ fn main() -> eframe::Result {
         viewport: egui::ViewportBuilder::default()
             .with_title("OpenPrism")
             .with_icon(app_icon())
-            .with_inner_size([1050., 700.])
+            .with_inner_size([1200., 920.])
             .with_min_inner_size([900., 560.])
             .with_active(!background)
             .with_visible(!hidden),

@@ -83,6 +83,24 @@ pub fn apply_fonts(ctx: &eframe::egui::Context) {
             }
         }
     }
+    if let Ok(data) = std::fs::read(
+        std::path::Path::new(&windows)
+            .join("Fonts")
+            .join("segoeuib.ttf"),
+    ) {
+        fonts
+            .font_data
+            .insert("segoe-bold".into(), FontData::from_owned(data).into());
+        fonts.families.insert(
+            FontFamily::Name("bold".into()),
+            vec!["segoe-bold".into(), "segoe".into()],
+        );
+    } else {
+        fonts.families.insert(
+            FontFamily::Name("bold".into()),
+            fonts.families[&FontFamily::Proportional].clone(),
+        );
+    }
     ctx.set_fonts(fonts);
 }
 fn english(text: &str) -> &str {
@@ -129,6 +147,8 @@ fn english(text: &str) -> &str {
         "Hizmet yanıtı geçersiz" => "Invalid service response",
         "Hizmet çıktısı açılamadı" => "Could not read service output",
         "ByeDPI yapılandırması" => "ByeDPI configuration",
+        "Zapret yapılandırması" => "Zapret configuration",
+        "Özel parametre · isteğe bağlı" => "Custom arguments · optional",
         "Strateji" => "Strategy", "Standart" => "Standard", "DNS · isteğe bağlı" => "DNS · optional", "Varsayılan DNS" => "Default DNS",
         "Ağında çalışan ByeDPI stratejilerini test et. Sonuçlar otomatik uygulanmaz." => "Test ByeDPI strategies on your network. Results are not applied automatically.",
         "Test edilecek alan adları" => "Hosts to test",
@@ -226,7 +246,7 @@ fn english(text: &str) -> &str {
         "Tüm trafik" => "All traffic", "Yalnızca seçilenler" => "Selected only", "Seçilenler" => "Selected", "Seçilenler hariç" => "Exclude selected",
         "Özel WireGuard Profili" => "Custom WireGuard profile",  "Diğer yöntemler" => "Other methods",
         "Sağlayıcı" => "Provider", "Yapılandır" => "Configure", "Düzenle" => "Edit", "Kuralı düzenle" => "Edit rule",
-        "Ekle" => "Add", "Sil" => "Delete", "Kaldır" => "Remove", "Kaydet" => "Save", "Vazgeç" => "Cancel", "İptal" => "Cancel",
+        "Ekle" => "Add", "Sil" => "Delete", "Kaydet" => "Save", "Vazgeç" => "Cancel", "İptal" => "Cancel",
         "Geri" => "Back", "Devam" => "Continue", "İleri" => "Next", "Bitir" => "Finish", "Kapat" => "Close",
         "İlk kurulum" => "Initial setup", "WGTun'a hoş geldin" => "Welcome to WGTun", "Bağlantı yöntemini seç" => "Choose a connection method",
         "WireGuard, varsayılan olarak Cloudflare WARP kullanır. ByeDPI alternatif bir yöntemdir." => "WireGuard uses Cloudflare WARP by default. ByeDPI is an alternative method.",

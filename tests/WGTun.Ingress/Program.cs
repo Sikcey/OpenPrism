@@ -1,0 +1,12 @@
+using System.Net;
+using System.Net.Sockets;
+using System.Text;
+using WGTun.Core;
+var server = new TcpListener(IPAddress.Loopback,0); server.Start(); int port=((IPEndPoint)server.LocalEndpoint).Port;
+await using var relay = new IngressSocksRelay(port);
+var fake = Task.Run(async () => { using var c=await server.AcceptTcpClientAsync(); var s=c.GetStream(); byte[] b=new byte[3]; await s.ReadExactlyAsync(b); await s.WriteAsync(new byte[]{5,0}); b=new byte[5]; await s.ReadExactlyAsync(b); if (b[3]!=3) throw new Exception("domain was not recovered"); byte[] dest=new byte[b[4]+2]; await s.ReadExactlyAsync(dest); if (Encoding.ASCII.GetString(dest,0,b[4])!="discord.com") throw new Exception("wrong domain"); await s.WriteAsync(new byte[]{5,0,0,1,127,0,0,1,0,0}); b=new byte[2]; await s.ReadExactlyAsync(b); if (b[0]!=22) throw new Exception("handshake not replayed"); });
+using var client=new TcpClient(); await client.ConnectAsync(IPAddress.Loopback,relay.Port); var stream=client.GetStream(); await stream.WriteAsync(new byte[]{5,1,0}); byte[] response=new byte[2]; await stream.ReadExactlyAsync(response); await stream.WriteAsync(new byte[]{5,1,0,1,203,0,113,1,1,187}); response=new byte[10]; await stream.ReadExactlyAsync(response);
+byte[] name=Encoding.ASCII.GetBytes("discord.com"); byte[] ext=[0,0,0,(byte)(name.Length+5),0,(byte)(name.Length+3),0,0,(byte)name.Length,..name]; byte[] hello=[1,0,0,(byte)(43+ext.Length),3,3,..new byte[32],0,0,2,0x13,1,1,0,0,(byte)ext.Length,..ext];
+int split=20; byte[] records=[22,3,3,0,(byte)split,..hello[..split],22,3,3,0,(byte)(hello.Length-split),..hello[split..]]; await stream.WriteAsync(records); await fake.WaitAsync(TimeSpan.FromSeconds(5)); Console.WriteLine("PASS poisoned IP replaced by fragmented TLS SNI and bytes replayed"); server.Stop();
+var settings=new UserSettings { Profile=ProfileKind.Dpi, Scope=TrafficScope.All }; string config=AppBackend.BuildProbeProxyConfiguration("",settings,12080,null,12081); File.WriteAllText("artifacts/ingress-check.json",config);
+await EngineIntegration.RunAsync();

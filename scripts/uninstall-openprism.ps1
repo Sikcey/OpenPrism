@@ -1,5 +1,5 @@
 [CmdletBinding()]
-param([string]$InstallDirectory = (Join-Path $env:LOCALAPPDATA 'OpenPrism'), [switch]$Fixture)
+param([string]$InstallDirectory = (Join-Path $env:LOCALAPPDATA 'OpenPrism'), [switch]$Fixture, [switch]$Interactive)
 $ErrorActionPreference = 'Stop'
 $install = [IO.Path]::GetFullPath($InstallDirectory).TrimEnd('\')
 if ($Fixture -and -not $install.StartsWith((Join-Path $env:TEMP 'OpenPrism-Fixture-'), [StringComparison]::OrdinalIgnoreCase)) { throw 'Fixture escaped temporary directory.' }
@@ -9,6 +9,32 @@ if (-not $Fixture -and (Get-ItemProperty -LiteralPath $key).InstallLocation -ne 
 $manifestPath = Join-Path $install 'package-manifest.json'
 $manifest = Get-Content -Raw -LiteralPath $manifestPath | ConvertFrom-Json
 if ($manifest.product -ne 'OpenPrism') { throw 'Wrong product.' }
+if ($Interactive) {
+    if ($Fixture) { throw 'Interactive uninstall requires a registered installation.' }
+    $name = 'OpenPrism-Uninstall.exe'
+    $entry = @($manifest.files | Where-Object { $_.path -eq $name })
+    if ($entry.Count -eq 0) {
+        $name = 'OpenPrism-Setup.exe'
+        $entry = @($manifest.files | Where-Object { $_.path -eq $name })
+    }
+    $setup = Join-Path $install $name
+    if ($entry.Count -ne 1 -or ((Get-Item -LiteralPath $setup -Force).Attributes -band [IO.FileAttributes]::ReparsePoint) -or
+        (Get-FileHash -LiteralPath $setup -Algorithm SHA256).Hash -ne $entry[0].sha256) { throw 'Native setup is missing or modified.' }
+    # Run outside the installation so Windows can remove the original executable.
+    $work = Join-Path ([IO.Path]::GetTempPath()) ('OpenPrism-Uninstall-' + [Guid]::NewGuid().ToString('N'))
+    New-Item -ItemType Directory -Path $work | Out-Null
+    $copy = Join-Path $work $name
+    try {
+        Copy-Item -LiteralPath $setup -Destination $copy
+        $window = Start-Process -FilePath $copy -ArgumentList '--uninstall' -WorkingDirectory $work -WindowStyle Normal -PassThru
+        $window.WaitForExit()
+        if ($window.ExitCode -ne 0) { throw 'Native uninstaller exited unexpectedly.' }
+    } finally {
+        if (Test-Path -LiteralPath $copy) { Remove-Item -LiteralPath $copy -Force }
+        Remove-Item -LiteralPath $work -Force
+    }
+    return
+}
 $files = @()
 foreach ($entry in $manifest.files) {
     $relative = [string]$entry.path
@@ -27,6 +53,14 @@ if (-not $Fixture) {
     $runKey = 'HKCU:\Software\Microsoft\Windows\CurrentVersion\Run'
     $value = (Get-ItemProperty -LiteralPath $runKey -Name WGTun -ErrorAction SilentlyContinue).WGTun
     if ($value -eq ('"' + (Join-Path $install 'WGTun.exe') + '" --startup')) { Remove-ItemProperty -LiteralPath $runKey -Name WGTun }
+    $desktop = [Environment]::GetFolderPath('Desktop')
+    if ($desktop) {
+        $link = Join-Path $desktop 'OpenPrism.lnk'
+        if ((Test-Path -LiteralPath $link -PathType Leaf) -and -not ((Get-Item -LiteralPath $link -Force).Attributes -band [IO.FileAttributes]::ReparsePoint)) {
+            $shortcut = (New-Object -ComObject WScript.Shell).CreateShortcut($link)
+            if ($shortcut.TargetPath -eq (Join-Path $install 'WGTun.exe')) { Remove-Item -LiteralPath $link -Force }
+        }
+    }
 }
 foreach ($file in $files) {
     if ((Test-Path -LiteralPath $file.path -PathType Leaf) -and (Get-FileHash -Algorithm SHA256 -LiteralPath $file.path).Hash -eq $file.sha256) { Remove-Item -LiteralPath $file.path -Force }

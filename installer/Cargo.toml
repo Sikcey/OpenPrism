@@ -1,0 +1,28 @@
+[package]
+name = "openprism-installer"
+version = "0.3.0"
+edition = "2021"
+
+[features]
+bundle = ["dep:tempfile", "dep:zip"]
+
+[[bin]]
+name = "openprism-bundle"
+path = "src/bin/openprism-bundle.rs"
+required-features = ["bundle"]
+
+[dependencies]
+eframe = { version = "0.33", default-features = false, features = ["default_fonts", "glow"] }
+image = { version = "0.25", default-features = false, features = ["png"] }
+rfd = "0.15"
+serde_json = "1"
+uuid = { version = "1", features = ["v4"] }
+winreg = "0.55"
+windows-sys = { version = "0.59", features = ["Win32_Storage_FileSystem"] }
+tempfile = { version = "3", optional = true }
+zip = { version = "4", default-features = false, features = ["deflate"], optional = true }
+
+[profile.release]
+opt-level = "s"
+lto = "thin"
+strip = "symbols"

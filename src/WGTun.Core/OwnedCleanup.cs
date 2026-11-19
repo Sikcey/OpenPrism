@@ -44,20 +44,25 @@ public sealed partial class AppBackend
                     || relative.StartsWith("Logs/", StringComparison.OrdinalIgnoreCase) && Path.GetExtension(file).Equals(".log", StringComparison.OrdinalIgnoreCase)) File.Delete(file);
             }
         }
-        // Session configuration files have a fixed prefix and generated GUID name.
+        if (Directory.Exists(BrokerData)) foreach (string file in Directory.EnumerateFiles(BrokerData, "tun-*")) {
+            string name = Path.GetFileName(file)[4..]; int suffix = name.IndexOf('.');
+            if (suffix > 0 && Guid.TryParseExact(name[..suffix], "N", out _)
+                && name[suffix..] is ".json" or ".lease" or ".ready" or ".lease.stop") File.Delete(file);
+        }
+        // Legacy session files remain eligible for owned cleanup during migration.
         if (Directory.Exists(BrokerData)) foreach (string file in Directory.EnumerateFiles(BrokerData, "sing-box-*.json")) {
             if (Guid.TryParseExact(Path.GetFileNameWithoutExtension(file)[9..], "N", out _)) File.Delete(file);
         }
     }
     private static async Task RemoveOwnedWinDivertAsync()
     {
-        string expected = Path.GetFullPath(Path.Combine(BrokerRoot, "dependencies", "zapret", "WinDivert64.sys"));
+        var expected = new[] { "capture", "zapret" }.Select(component => Path.GetFullPath(Path.Combine(BrokerRoot, "dependencies", component, "WinDivert64.sys"))).ToArray();
         foreach (string name in new[] { "WinDivert", "WinDivert1.4", "WinDivert2.2" }) {
             using var key = Registry.LocalMachine.OpenSubKey(@"SYSTEM\CurrentControlSet\Services\" + name);
             if (key?.GetValue("ImagePath") is not string image) continue;
             image = Environment.ExpandEnvironmentVariables(image.Trim('"'));
             if (image.StartsWith(@"\??\")) image = image[4..];
-            if (!Path.IsPathFullyQualified(image) || !string.Equals(Path.GetFullPath(image), expected, StringComparison.OrdinalIgnoreCase)) continue;
+            if (!Path.IsPathFullyQualified(image) || !expected.Contains(Path.GetFullPath(image), StringComparer.OrdinalIgnoreCase)) continue;
             // Do not touch drivers whose registration points to another product.
             var stopped = await RunAsync(ScExe, "stop", name);
             if (stopped.Code is not (0 or 1062 or 1060)) throw new IOException("Owned WinDivert driver is still in use; files preserved.");

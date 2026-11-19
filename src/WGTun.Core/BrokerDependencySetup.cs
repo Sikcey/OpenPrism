@@ -31,6 +31,15 @@ public sealed partial class AppBackend
                 input.CopyTo(output);
             }
             }
+            if (component == "capture") {
+                Directory.CreateDirectory(Path.Combine(path, "capture"));
+                foreach (var asset in DependencyDownloads.CaptureFiles) {
+                    using var input = new FileStream(DependencyDownloads.Cached(asset), FileMode.Open, FileAccess.Read, FileShare.Read);
+                    DependencyDownloads.Verify(input, asset.Hash);
+                    using var output = new FileStream(Path.Combine(path, "capture", asset.Name), FileMode.CreateNew);
+                    input.CopyTo(output);
+                }
+            }
             SingBoxDependencies.ValidateComponent(path, component);
             return snapshot;
         } catch { snapshot.Dispose(); throw; }

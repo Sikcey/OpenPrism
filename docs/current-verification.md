@@ -1,40 +1,33 @@
-# Verification — OpenPrism 0.2.0
+# Verification — OpenPrism 0.3.0 selective TUN
 
-Verified on Windows x64 on 2026-11-15. Privileged maintenance used the user-launched named-pipe runner; no additional elevation prompt was requested.
+This is a new backend. The earlier 0.2.0 ProxiFyre validation is historical.
 
-## Live capture
+## Current checks
 
-- Selected HTTPS requests succeeded with ByeDPI, Zapret and an existing WARP/WireGuard profile.
-- Include mode, exclude mode, all-traffic mode with exclusions, and an overlapping direct exclusion passed TCP-path checks using an owned probe.
-- The selected probe created an outbound connection through the transport; the same probe with a direct exclusion did not.
-- Native routes and DNS server settings were unchanged during capture and after disconnect.
-- The shared Windows Packet Filter driver remained installed and running. Its existing driver signature was valid.
-- Streaming playback has not been tested. Full IPv6, UDP/QUIC and custom-provider interoperability need broader packet-level validation.
+- Go packet-engine tests cover IPv4/IPv6 selection, excluded/unknown ownership,
+  real sing-tun UDP payload/reply handling, IPv6 extension parsing and malformed
+  packets, fragmented HTTP replay, TLS ClientHello recovery and bounded
+  server-first fallback.
+- The elevated production-engine self-test launches three real executables
+  and completes TCP and UDP echo exchanges on this machine. Only the selected
+  exe enters sing-tun; the ignored and direct-exempt exe stay direct.
+- Closing the filter restores direct traffic. Hard-killing a separate capture
+  worker also restores native traffic without executing its cleanup handler.
+- The report checks DNS configuration and driver ownership/cleanup. Evidence
+  is artifacts/steering-driver/result.json plus stdout.txt and stderr.txt.
+- C# core, capture policy/configuration and dependency checks are part of the
+  paired package build. Installer fixtures verify payload integrity, traversal
+  rejection and preservation of unknown/modified files without installing.
 
-Raw reports remain local under artifacts/admin-runner and are not committed.
+## Limits
 
-## GoodCheck
+There is no assigned non-link-local IPv6 address on this host. Native global
+IPv6 is skipped; IPv6 packet-stack tests pass. Zapret transport remains IPv4
+only. No new real-ISP Discord/voice/streaming or custom WireGuard-provider
+claim is made. Unknown ownership/unsupported packets are direct, not blocked.
+This is an unsigned development build, not a certified privacy boundary.
 
-Full HTTPS scans completed for both engines against example.com: 15 ByeDPI candidates and 7 Zapret candidates. Per-host results were present. The best four candidates were retested. Cancellation retained completed results. A successful check is a measurement for that target and network, not carrier-wide proof.
-
-## Recovery
-
-The service detected and recovered from a killed capture child and a simulated network-rebind request. It then stopped the owned process tree. Isolated checks cover bounded retry backoff and reset. Real suspend/resume, physical adapter switching and reboot recovery have not been exhaustively exercised.
-
-## Installation and cleanup
-
-- Optional engine removal/reinstallation was exercised for ByeDPI and Zapret.
-- Bulk service removal removed the service and its two owned firewall rules, preserving the shared packet-filter driver.
-- Fresh installation after bulk removal succeeded. Known legacy scan files and capture debug output are cleaned.
-- The Windows installer/uninstaller was tested against temporary fixtures: tampering and traversal were rejected; foreign and modified files were preserved.
-- Real Windows Settings application removal was not invoked against the user's live installation/data. The underlying service cleanup was tested separately.
-
-## Local checks
-
-Core, dependency archive, capture-boundary/configuration and Rust checks pass. Generated configurations are checked by the pinned sing-box binary, including the loopback WireGuard SOCKS configuration. Installer fixtures invoke the actual scripts without service or registry changes.
-
-The main-menu screenshot was captured with foreground focus preserved; the earlier DPI-related clipping was fixed. The executable has the embedded prism resource.
-
-## Signing
-
-No publisher certificate with a private key was available. No signed release is claimed. Release tooling signs the paired app/service and scripts, hashes every package file and signs the detached manifest. Development binaries reject signed-update execution without configured publisher trust.
+Run scripts/test-steering.cmd for the current production-engine local test.
+Build from source with scripts/prepare-update.ps1. UI, service and WGTun.Tun.exe
+must come from the same build; the service checks the packet engine's baked-in
+SHA-256 identity. Never mix the old UI/backend with the new packet engine.

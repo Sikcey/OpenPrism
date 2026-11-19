@@ -95,7 +95,7 @@ pub fn about(ui: &mut egui::Ui, update: &Value, busy: bool) -> bool {
     card(ui, |ui| {
         ui.horizontal(|ui| {
             ui.vertical(|ui| {
-                ui.label(format!("WGTun  v{}", env!("CARGO_PKG_VERSION")));
+                ui.label(format!("OpenPrism  v{}", env!("CARGO_PKG_VERSION")));
                 small(ui, "WireGuard ve DPI yönlendirme, tek yerde.");
             });
             ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
@@ -138,11 +138,11 @@ pub fn about(ui: &mut egui::Ui, update: &Value, busy: bool) -> bool {
         );
         for (name, author, purpose, license, url) in [
             (
-                "ProxiFyre / Windows Packet Filter",
-                "Vadim Smirnov / wiresock",
+                "sing-tun / WinDivert",
+                "SagerNet / basil00",
                 "Application capture",
-                "AGPL-3.0 / MIT",
-                "https://github.com/wiresock/proxifyre",
+                "GPL-3.0 / LGPL-3.0",
+                "https://github.com/SagerNet/sing-tun",
             ),
             (
                 "Zapret / WinDivert",

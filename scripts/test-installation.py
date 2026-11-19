@@ -11,7 +11,7 @@ root = Path(os.environ["TEMP"]) / ("OpenPrism-Fixture-" + uuid.uuid4().hex)
 package = root / "package"
 installed = root / "installed"
 package.mkdir(parents=True)
-for name in ["WGTun.exe", "backend/WGTun.Service.exe", "backend/WGTun.Core.dll", "README.md"]:
+for name in ["WGTun.exe", "backend/WGTun.Service.exe", "backend/WGTun.Core.dll", "backend/WGTun.Tun.exe", "README.md"]:
     target = package / name
     target.parent.mkdir(parents=True, exist_ok=True)
     target.write_text("fixture " + name, encoding="utf-8")
@@ -26,7 +26,11 @@ manifest = inventory()
 (package / "package-manifest.json").write_text(json.dumps(manifest), encoding="utf-8")
 
 def run(script, *args, success=True):
-    result = subprocess.run(["powershell", "-NoProfile", "-ExecutionPolicy", "Bypass", "-File", str(script), *map(str, args)], capture_output=True, text=True)
+    env = os.environ.copy()
+    # Windows PowerShell can inherit PowerShell 7's incompatible module path in CI.
+    system_modules = str(Path(env.get('SystemRoot', env.get('WINDIR', r'C:\Windows'))) / 'System32/WindowsPowerShell/v1.0/Modules')
+    env['PSModulePath'] = system_modules + os.pathsep + env.get('PSModulePath', '')
+    result = subprocess.run(["powershell", "-NoProfile", "-ExecutionPolicy", "Bypass", "-File", str(script), *map(str, args)], capture_output=True, text=True, env=env)
     if (result.returncode == 0) != success:
         raise AssertionError(result.stdout + result.stderr)
 

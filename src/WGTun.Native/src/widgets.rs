@@ -1,9 +1,19 @@
-use crate::{ACCENT, BG, INK, LINE, PANEL, SOFT, SUB};
-use eframe::egui::{self, Color32, FontId, Pos2, RichText, Sense, Stroke, Vec2};
+use crate::{ACCENT, INK, LINE, PANEL, SUB};
+use eframe::egui::{self, Color32, FontId, Pos2, Sense, Stroke, Vec2};
+
+pub use crate::branding::gradient_colors;
+
+pub fn removal_button(ui: &mut egui::Ui, text: &str, enabled: bool) -> egui::Response {
+    ui.add_enabled(enabled, egui::Button::new(crate::locale::tr(text)))
+}
 
 pub fn icon(ui: &mut egui::Ui, kind: &str, color: Color32, size: f32) -> egui::Response {
     let (r, response) = ui.allocate_exact_size(Vec2::splat(size), Sense::hover());
-    draw_icon(ui.painter(), r.center(), kind, color);
+    if kind == "prism" {
+        crate::branding::prism(ui.painter(), r, 1.6);
+    } else {
+        draw_icon(ui.painter(), r.center(), kind, color);
+    }
     response
 }
 pub fn draw_icon(p: &egui::Painter, c: Pos2, kind: &str, color: Color32) {
@@ -79,25 +89,83 @@ pub fn draw_icon(p: &egui::Painter, c: Pos2, kind: &str, color: Color32) {
         }
     }
 }
+pub fn gradient_fill(p: &egui::Painter, rect: egui::Rect, radius: f32, alpha: f32) {
+    crate::branding::rounded_gradient(p, rect, radius, alpha);
+}
+pub fn power_gradient(p: &egui::Painter, center: Pos2, radius: f32, hovered: bool) {
+    let colors = gradient_colors();
+    let color_at = |x: f32, y: f32| {
+        let t = ((x + y + 1.4) / 2.8).clamp(0., 1.) * 3.;
+        let j = (t as usize).min(2);
+        let f = t - j as f32;
+        let channel = |get: fn(Color32) -> u8| {
+            let value = get(colors[j]) as f32 * (1. - f) + get(colors[j + 1]) as f32 * f;
+            (value * if hovered { 1.12 } else { 1. }).min(255.) as u8
+        };
+        Color32::from_rgb(channel(|c| c.r()), channel(|c| c.g()), channel(|c| c.b()))
+    };
+    let mut mesh = egui::Mesh::default();
+    mesh.colored_vertex(center, color_at(0., 0.));
+    for ring in 1..=33u32 {
+        let fraction = ring.min(32) as f32 / 32.;
+        for i in 0..192u32 {
+            let angle = std::f32::consts::TAU * i as f32 / 192.;
+            let (y, x) = angle.sin_cos();
+            let distance = if ring == 33 {
+                radius + 0.5
+            } else {
+                (radius - 0.5) * fraction
+            };
+            mesh.colored_vertex(
+                center + Vec2::new(x, y) * distance,
+                if ring == 33 {
+                    Color32::TRANSPARENT
+                } else {
+                    color_at(x * fraction, y * fraction)
+                },
+            );
+            let a = 1 + (ring - 1) * 192 + i;
+            let b = 1 + (ring - 1) * 192 + (i + 1) % 192;
+            if ring == 1 {
+                mesh.add_triangle(0, a, b);
+            } else {
+                mesh.add_triangle(a - 192, a, b);
+                mesh.add_triangle(a - 192, b, b - 192);
+            }
+        }
+    }
+    p.add(egui::Shape::mesh(mesh));
+}
 pub fn nav(ui: &mut egui::Ui, kind: &str, text: &str, selected: bool) -> bool {
     let (r, response) =
-        ui.allocate_exact_size(Vec2::new(ui.available_width(), 37.), Sense::click());
-    if selected || response.hovered() {
-        ui.painter()
-            .rect_filled(r, 8., if selected { SOFT } else { BG });
+        ui.allocate_exact_size(Vec2::new(ui.available_width(), 52.), Sense::click());
+    if selected {
+        gradient_fill(ui.painter(), r, 10., 0.25);
+        let clip = ui.painter().with_clip_rect(egui::Rect::from_min_max(
+            r.min,
+            Pos2::new(r.left() + 9., r.bottom()),
+        ));
+        clip.rect_stroke(
+            r.shrink(1.),
+            10.,
+            Stroke::new(2_f32, ACCENT),
+            egui::StrokeKind::Inside,
+        );
+    } else if response.hovered() {
+        gradient_fill(ui.painter(), r, 10., 0.16);
     }
     let color = if selected { INK } else { SUB };
     draw_icon(
         ui.painter(),
-        r.left_center() + Vec2::new(17., 0.),
+        r.left_center() + Vec2::new(24., 0.),
         kind,
         color,
     );
     ui.painter().text(
-        r.left_center() + Vec2::new(36., 0.),
+        r.left_center() + Vec2::new(50., 0.),
         egui::Align2::LEFT_CENTER,
         crate::locale::tr(text),
-        FontId::proportional(13.),
+        FontId::proportional(15.),
         color,
     );
     response.clicked()
@@ -105,62 +173,59 @@ pub fn nav(ui: &mut egui::Ui, kind: &str, text: &str, selected: bool) -> bool {
 pub fn segments(ui: &mut egui::Ui, id: &str, labels: &[&str], selected: usize) -> Option<usize> {
     let mut clicked = None;
     egui::Frame::new()
-        .fill(PANEL)
-        .stroke(Stroke::new(1.0_f32, LINE))
-        .corner_radius(9)
-        .inner_margin(4)
+        .fill(Color32::from_rgb(23, 24, 30))
+        .stroke(Stroke::new(1_f32, LINE))
+        .corner_radius(10)
+        .inner_margin(5)
         .show(ui, |ui| {
             let width =
                 (ui.available_width() - 4. * (labels.len() - 1) as f32) / labels.len() as f32;
             ui.spacing_mut().item_spacing.x = 4.;
             ui.horizontal(|ui| {
                 for (i, label) in labels.iter().enumerate() {
-                    if ui
-                        .push_id((id, i), |ui| {
-                            ui.add_sized(
-                                [width, 30.],
-                                egui::Button::new(
-                                    RichText::new(crate::locale::tr(label))
-                                        .size(11.)
-                                        .color(if i == selected { INK } else { SUB }),
-                                )
-                                .fill(if i == selected { SOFT } else { PANEL })
-                                .stroke(Stroke::NONE)
-                                .corner_radius(6),
-                            )
-                        })
-                        .inner
-                        .clicked()
-                    {
+                    let (r, response) =
+                        ui.allocate_exact_size(Vec2::new(width, 46.), Sense::click());
+                    if i == selected {
+                        gradient_fill(ui.painter(), r, 8., 0.23);
+                    }
+                    ui.painter().text(
+                        r.center(),
+                        egui::Align2::CENTER_CENTER,
+                        crate::locale::tr(label),
+                        FontId::new(14., egui::FontFamily::Name("bold".into())),
+                        if i == selected { INK } else { SUB },
+                    );
+                    if response.clicked() {
                         clicked = Some(i);
                     }
                 }
             });
         });
+    let _ = id;
     clicked
 }
 pub fn toggle(ui: &mut egui::Ui, checked: &mut bool) -> egui::Response {
-    let (r, mut response) = ui.allocate_exact_size(Vec2::new(28., 18.), Sense::click());
+    let (r, mut response) = ui.allocate_exact_size(Vec2::new(46., 26.), Sense::click());
     if response.clicked() {
         *checked = !*checked;
         response.mark_changed();
     }
     ui.painter().rect_filled(
         r.shrink2(Vec2::new(0., 1.)),
-        9.,
+        14.,
         if *checked { ACCENT } else { LINE },
     );
     ui.painter().circle_filled(
         Pos2::new(
             if *checked {
-                r.right() - 8.
+                r.right() - 13.
             } else {
-                r.left() + 8.
+                r.left() + 13.
             },
             r.center().y,
         ),
-        5.,
-        PANEL,
+        10.,
+        Color32::WHITE,
     );
     response.widget_info(|| {
         egui::WidgetInfo::selected(

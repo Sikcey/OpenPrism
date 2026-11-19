@@ -23,7 +23,7 @@ internal sealed class GoodCheckSession : IAsyncDisposable
                 session.egress = ZapretEgress.Detect();
                 session.relay = new ZapretRelay(session.egress);
                 session.Port = session.relay.Port;
-                string filter = ZapretFilterBuilder.Build(session.egress.Index, [session.relay.TcpPorts, session.relay.UdpPorts], 80, 443);
+                string filter = ZapretStrategies.BuildFilter(session.egress.Index, [session.relay.TcpPorts, session.relay.UdpPorts], new() { Engine = "zapret", PresetId = preset.Id });
                 session.child = session.job.Start(SingBoxDependencies.ZapretExe,
                     ["--wf-raw=" + filter, .. ZapretStrategies.Resolve(new() { Engine = "zapret", PresetId = preset.Id })], work);
                 await Task.Delay(750, token);

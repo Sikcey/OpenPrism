@@ -1,0 +1,1 @@
+namespace WGTun.Core; internal static class TunBuildIdentity { internal const string Sha256 = "AF54B742931656E7F88475565F9FD3983D55B987EC6E7D991E85982E869D4099"; }

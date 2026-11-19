@@ -52,24 +52,26 @@ public sealed partial class AppBackend
     {
         private SingBoxSession? session;
         private SavedTunnel? desired;
+        private int recoveryAttempts;
+        private long recoveryStarted;
+        private bool recovering;
         private readonly RecoveryBackoff recovery = new();
         private readonly RecoveryWatchdog watchdog = new();
-        private string message = "WGTun disconnected.";
+        private string message = "OpenPrism disconnected.";
         public ComponentStatus[] Components() {
             var result = new List<ComponentStatus> { new("WGTun", UpdateChecker.CurrentVersion, true, true, "Windows hizmeti çalışıyor.") };
             foreach (var (name, folder, version, process) in new[] {
-                ("sing-box", "sing-box", SingBoxDependencies.SingBoxVersion, "sing-box"),
-                ("Capture", "proxifyre", "2.7.0", "ProxiFyre"),
+                ("sing-box", "sing-box", SingBoxDependencies.SingBoxVersion, "WGTun.Tun"),
+                ("Selective TUN", "capture", "1", "WGTun.Tun"),
                 ("ByeDPI", "byedpi", SingBoxDependencies.ByeDpiVersion, "ciadpi"),
                 ("Zapret", "zapret", "trial", "winws") }) {
                 bool installed = false; string detail;
-                try { SingBoxDependencies.ValidateComponent(SingBoxDependencies.Root, folder); installed = true; detail = "Dosyalar doğrulandı."; }
+                try { SingBoxDependencies.ValidateComponent(SingBoxDependencies.Root, folder); if (folder == "capture") SingBoxDependencies.ValidateComponent(SingBoxDependencies.Root, "selective-tun"); installed = true; detail = "Dosyalar doğrulandı."; }
                 catch (Exception e) when (e is IOException or UnauthorizedAccessException) { detail = "Kurulum / onarım gerekli: " + e.Message; }
                 bool running = session?.IsChildRunning(process) == true;
                 result.Add(new(name, version, installed, running, running ? "Bağlantı motoru çalışıyor." : detail));
             }
-            uint? driver = ReadService("ndisrd");
-            result.Add(new("Windows Packet Filter", "", driver != null, driver == 4, driver == null ? "Install the official Windows Packet Filter prerequisite before using application capture." : "Shared driver; preserved during removal."));
+            result.Add(new("Packet ingress", "WinDivert", true, session?.IsRunning == true, "Session-owned capture; no global TUN routes or adapter DNS changes."));
             return result.ToArray();
         }
         public Task<BrokerReply> StatusAsync() => Task.FromResult(new BrokerReply(true,
@@ -80,15 +82,16 @@ public sealed partial class AppBackend
             ValidateBrokerSettings(saved.Settings);
             if (saved.Config.Length > 65536) throw new IOException("WireGuard profile exceeds 64 KiB.");
             CaptureBoundary.EnsureSupported(saved.Settings);
-            _ = ProxiFyreConfiguration.Build(saved.Settings, 10809);
+            _ = BuildSelectiveTunConfiguration(saved.Config, saved.Settings);
             await StopSessionAsync();
             desired = saved;
             session = await SingBoxSession.StartAsync(saved.Config, saved.Settings, BrokerData, token);
-            if (!session.IsRunning) { await StopSessionAsync(); return new(false, "Tunnel engine exited during startup."); }
+            if (!session.IsRunning) { await StopSessionAsync(); throw new IOException("Tunnel engine exited during startup."); }
             try { SaveBrokerTunnel(saved); }
             catch { desired = null; await StopSessionAsync(); throw; }
             desired = saved;
             recovery.Reset();
+            if (!recovering) recoveryAttempts = 0;
             watchdog.Reset(Environment.TickCount64);
             message = "Tunnel engine running.";
             LogService("Bağlantı motoru başlatıldı: " + saved.Settings.Method);
@@ -117,10 +120,24 @@ public sealed partial class AppBackend
         public async Task RecoverAsync(CancellationToken token)
         {
             if (watchdog.Observe(Environment.TickCount64)) session?.RequestRebind();
-            if (desired == null || (session?.IsRunning == true && !session.NeedsRebind) || !recovery.Ready(DateTimeOffset.UtcNow)) return;
+            if (desired == null || (session?.IsRunning == true && !session.NeedsRebind)) return;
+            if (desired.Settings.Profile is not (ProfileKind.Dpi or ProfileKind.Zapret)) {
+                if (!recovery.Ready(DateTimeOffset.UtcNow)) return;
+                var prior = desired;
+                try { await ConnectAsync(prior, token); }
+                catch (Exception e) when (!token.IsCancellationRequested) { desired = prior; recovery.Failed(DateTimeOffset.UtcNow); message = "Engine recovery pending; retrying with backoff."; LifecycleDiagnostics.Record(BrokerData, "recovery-failed", e); LogService(message); }
+                return;
+            }
+            if (recoveryStarted == 0) recoveryStarted = Environment.TickCount64;
+            if (session != null) { await StopSessionAsync(); message = "Connection lost; Capture released. Recovery pending."; recovery.Failed(DateTimeOffset.UtcNow); }
+            if (!recovery.Ready(DateTimeOffset.UtcNow)) return;
+            if (recoveryAttempts >= 3 || Environment.TickCount64 - recoveryStarted >= 120000) { desired = null; recoveryStarted = 0; message = "Connection lost; automatic recovery exhausted. Capture released."; return; }
             var retry = desired;
-            try { await ConnectAsync(retry, token); }
-            catch (Exception e) when (!token.IsCancellationRequested) { desired = retry; recovery.Failed(DateTimeOffset.UtcNow); message = "Engine recovery pending; retrying with backoff."; LifecycleDiagnostics.Record(BrokerData, "recovery-failed", e); LogService(message); }
+            recoveryAttempts++;
+            recovering = true;
+            try { await ConnectAsync(retry, token); recoveryStarted = 0; }
+            catch (Exception e) when (!token.IsCancellationRequested) { desired = retry; recovery.Failed(DateTimeOffset.UtcNow); message = "Connection lost; recovery pending. Capture released."; LifecycleDiagnostics.Record(BrokerData, "recovery-failed", e); LogService(message); }
+            finally { recovering = false; }
         }
         private async Task StopSessionAsync()
         {
@@ -128,7 +145,7 @@ public sealed partial class AppBackend
         }
         public async Task<BrokerReply> StopAsync()
         {
-            desired = null; recovery.Reset(); await StopSessionAsync(); message = "Bağlantı kapatıldı."; LogService(message); return new(true, message);
+            desired = null; recoveryAttempts = 0; recoveryStarted = 0; recovery.Reset(); await StopSessionAsync(); message = "Bağlantı kapatıldı."; LogService(message); return new(true, message);
         }
         public void SetMessage(string text) { message = text; LogService(text); }
         public void SetStartup(bool enabled) { if (desired != null) desired = desired with { Startup = enabled }; }
@@ -149,10 +166,11 @@ public sealed partial class AppBackend
     }
     private static async Task RunBrokerLoopAsync(CancellationToken stop)
     {
-        LogService("WGTun hizmeti başlatıldı.");
+        LogService("OpenPrism hizmeti başlatıldı.");
         await using var engine = new BrokerEngine();
         using var engineGate = new SemaphoreSlim(1, 1);
         using var lifetime = CancellationTokenSource.CreateLinkedTokenSource(stop);
+        CancellationTokenSource? recoveryAttempt = null;
         Task<GoodCheckResult>? goodcheck = null;
         CancellationTokenSource? goodcheckCancel = null;
         Task recovery = Task.Run(async () => {
@@ -169,7 +187,14 @@ public sealed partial class AppBackend
                 while (true) {
                     await Task.Delay(TimeSpan.FromSeconds(15), lifetime.Token);
                     await engineGate.WaitAsync(lifetime.Token);
-                    try { if (goodcheck == null || goodcheck.IsCompleted) await engine.RecoverAsync(lifetime.Token); } finally { engineGate.Release(); }
+                    try {
+                    using var attempt = CancellationTokenSource.CreateLinkedTokenSource(lifetime.Token);
+                    attempt.CancelAfter(TimeSpan.FromSeconds(20));
+                    Interlocked.Exchange(ref recoveryAttempt, attempt);
+                    try { if (goodcheck == null || goodcheck.IsCompleted) await engine.RecoverAsync(attempt.Token); }
+                    catch (OperationCanceledException) when (!lifetime.IsCancellationRequested) { }
+                    finally { Interlocked.CompareExchange(ref recoveryAttempt, null, attempt); }
+                } finally { engineGate.Release(); }
                 }
             } catch (OperationCanceledException) when (lifetime.IsCancellationRequested) { }
         });
@@ -195,11 +220,12 @@ public sealed partial class AppBackend
                     BrokerReply result;
                     try {
                         var request = JsonSerializer.Deserialize<BrokerRequest>(await ReadBoundedLineAsync(reader, 262144, timeout.Token)) ?? throw new IOException("Invalid request.");
+                        if (request.Command == "disconnect") { try { Volatile.Read(ref recoveryAttempt)?.Cancel(); } catch (ObjectDisposedException) { } }
                         await engineGate.WaitAsync(timeout.Token);
                         try {
                             if (request.Protocol != BrokerProtocol) throw new IOException("Incompatible broker protocol; update the paired app and service.");
 switch (request.Command) {
-case "handshake": result = new(true, "Compatible broker.", Protocol: BrokerProtocol, Capabilities: ["core-v3", "goodcheck-v2", "zapret-profiles", "capture-native-v1"]); break;
+                        case "handshake": result = new(true, "Compatible broker.", Protocol: BrokerProtocol, Capabilities: ["core-v4", "goodcheck-v2", "zapret-profiles", "capture-selective-tun-v1"]); break;
                                 case "status": result = await engine.StatusAsync(); break;
                             case "verify-recovery": result = await engine.VerifyRecoveryAsync(timeout.Token); break;
                         case "logs": result = ReadBrokerLogs(); break;
@@ -207,7 +233,7 @@ case "handshake": result = new(true, "Compatible broker.", Protocol: BrokerProto
                         case "clear-logs": result = ClearBrokerLogs(); break;
                         case "health":
                             var components = engine.Components();
-                            bool ready = components.Where(component => component.Name is "WGTun" or "sing-box" or "Capture" or "Windows Packet Filter").All(component => component.Installed);
+                            bool ready = components.Where(component => component.Name is "WGTun" or "sing-box" or "Selective TUN" or "Packet ingress").All(component => component.Installed);
                             result = new(ready, ready ? "Kurulu hizmet ve motor dosyaları doğrulandı." : "Bazı motor dosyaları doğrulanamadı; onarım gerekli.", Components: components); break;
                                 case "goodcheck-start":
                                     if ((await engine.StatusAsync()).Connected) { result = new(false, "Disconnect before scanning.", GoodCheck: new(false, "engine-running", "Disconnect before scanning.", [])); break; }
@@ -229,7 +255,6 @@ case "handshake": result = new(true, "Compatible broker.", Protocol: BrokerProto
                                 if (request.Settings == null || request.Config == null) throw new IOException("Missing profile.");
                                 ValidateBrokerSettings(request.Settings);
                                 CaptureBoundary.EnsureSupported(request.Settings);
-                                _ = ProxiFyreConfiguration.Build(request.Settings, 10809);
                                 if (request.Settings.Profile is ProfileKind.Cloudflare or ProfileKind.CustomWireGuard && ValidateConfig(request.Config) is string invalid) throw new IOException(invalid);
                                 SaveBrokerTunnel(new(request.Settings, request.Config, request.Settings.AutoConnect));
                                 result = new(true, "Profile stored without activating capture."); break;

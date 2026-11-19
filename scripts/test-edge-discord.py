@@ -11,6 +11,7 @@ import time
 parser = argparse.ArgumentParser()
 parser.add_argument('--phase', default='baseline')
 parser.add_argument('--disable-quic', action='store_true')
+parser.add_argument('--socks-port', type=int)
 args = parser.parse_args()
 if not re.fullmatch(r'[a-zA-Z0-9_-]{1,40}', args.phase):
     raise SystemExit('Invalid phase')
@@ -21,7 +22,7 @@ edge = Path(os.environ.get('ProgramFiles(x86)', r'C:\Program Files (x86)')) / 'M
 if not edge.is_file():
     raise SystemExit('Microsoft Edge not installed')
 profile = out / ('profile-' + str(time.time_ns()))
-command = [str(edge), '--headless=new', '--disable-gpu', '--no-first-run',
+command = [str(edge), '--headless=new', '--mute-audio', '--disable-gpu', '--no-first-run',
     '--no-default-browser-check', '--disable-background-networking',
     '--disable-extensions', '--disable-component-update',
     '--user-data-dir=' + str(profile), '--window-size=1000,780',
@@ -29,8 +30,13 @@ command = [str(edge), '--headless=new', '--disable-gpu', '--no-first-run',
     '--dump-dom', 'https://discord.com/']
 if args.disable_quic:
     command.insert(-1, '--disable-quic')
+if args.socks_port is not None:
+    if not 1024 <= args.socks_port <= 65535:
+        raise SystemExit('Invalid loopback SOCKS port')
+    command.insert(-1, '--proxy-server=socks5://127.0.0.1:' + str(args.socks_port))
 report = {'browser': str(edge), 'url': 'https://discord.com/', 'phase': args.phase,
-          'isolatedProfile': True, 'focusRequested': False, 'quicDisabled': args.disable_quic, 'success': False}
+          'isolatedProfile': True, 'focusRequested': False, 'audioMuted': True,
+          'socksPort': args.socks_port, 'quicDisabled': args.disable_quic, 'success': False}
 start = time.monotonic()
 try:
     result = subprocess.run(command, capture_output=True, timeout=45,

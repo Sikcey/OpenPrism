@@ -84,7 +84,9 @@ pub fn render(
                                 ui.selectable_value(&mut kind, kind_value, type_label(kind_value));
                             }
                             ui.separator();
-                            ui.selectable_value(&mut kind, 7, locale::tr("Uygulama"));
+                            ui.selectable_value(&mut kind, 5, locale::tr("İşlem adı"));
+                            ui.selectable_value(&mut kind, 6, locale::tr("Uygulama yolu"));
+                            ui.selectable_value(&mut kind, 7, locale::tr("Klasör yolu"));
                         });
                 });
                 if kind != before {
@@ -92,50 +94,40 @@ pub fn render(
                     rule["value"] = json!("");
                 }
                 ui.add_space(10.);
-                small(ui, "Kural eylemi");
-                let mut rule_action = n(rule, "action");
-                egui::ComboBox::from_id_salt("rule_action")
-                    .width(ui.available_width())
-                    .selected_text(locale::tr(if rule_action == 1 {
-                        "Doğrudan / bağlantı dışında"
-                    } else {
-                        "Etkin bağlantıyı kullan"
-                    }))
-                    .show_ui(ui, |ui| {
-                        ui.selectable_value(
-                            &mut rule_action,
-                            0,
-                            locale::tr("Etkin bağlantıyı kullan"),
-                        );
-                        ui.selectable_value(
-                            &mut rule_action,
-                            1,
-                            locale::tr("Doğrudan / bağlantı dışında"),
-                        );
-                    });
-                rule["action"] = json!(rule_action);
                 let (label, placeholder, hint) = field(kind);
                 ui.add_space(10.);
                 small(ui, label);
                 let mut value = s(rule, "value");
                 ui.horizontal(|ui| {
                     let width =
-                        (ui.available_width() - if kind >= 5 { 106. } else { 0. }).max(100.);
+                        (ui.available_width() - if kind >= 6 { 106. } else { 0. }).max(100.);
                     ui.add_sized(
                         [width, 38.],
                         egui::TextEdit::singleline(&mut value).hint_text(placeholder),
                     );
-                    if kind >= 5
+                    if kind >= 6
                         && ui
                             .add_sized(
                                 [98., 38.],
-                                egui::Button::new(locale::tr("Klasör seç")).corner_radius(8),
+                                egui::Button::new(locale::tr(if kind == 6 {
+                                    ".exe seç"
+                                } else {
+                                    "Klasör seç"
+                                }))
+                                .corner_radius(8),
                             )
                             .clicked()
                     {
-                        if let Some(path) = rfd::FileDialog::new().pick_folder() {
+                        let selected = if kind == 6 {
+                            rfd::FileDialog::new()
+                                .add_filter("Windows uygulaması", &["exe"])
+                                .pick_file()
+                        } else {
+                            rfd::FileDialog::new().pick_folder()
+                        };
+                        if let Some(path) = selected {
                             value = path.to_string_lossy().into_owned();
-                            rule["type"] = json!(7);
+                            rule["type"] = json!(kind);
                         }
                     }
                 });
@@ -149,10 +141,7 @@ pub fn render(
             }
             ui.add_space(6.);
             ui.horizontal(|ui| {
-                if editing
-                    && ui
-                        .add_enabled(!pending, egui::Button::new(locale::tr("Sil")).frame(false))
-                        .clicked()
+                if editing && crate::widgets::removal_button(ui, "Sil", !pending).clicked()
                 {
                     action = Action::Delete;
                 }
@@ -207,7 +196,9 @@ fn type_label(kind: i64) -> &'static str {
         2 => "IPv6 adresi",
         3 => "IPv4 ağı / CIDR",
         4 => "IPv6 ağı / CIDR",
-        _ => "Uygulama",
+        5 => "İşlem adı",
+        6 => "Uygulama yolu",
+        _ => "Klasör yolu",
     })
 }
 fn field(kind: i64) -> (&'static str, &'static str, &'static str) {

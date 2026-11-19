@@ -36,7 +36,7 @@ public static class SignedPackage
             using var input = File.OpenRead(path);
             if (!Convert.ToHexString(SHA256.HashData(input)).Equals(file.GetProperty("sha256").GetString(), StringComparison.OrdinalIgnoreCase)) throw new IOException("Package file hash mismatch.");
         }
-        if (!paths.Contains("WGTun.exe") || !paths.Contains("backend/WGTun.Service.exe") || !paths.Contains("backend/WGTun.Core.dll") || !paths.Contains("install-openprism.ps1") || !paths.Contains("uninstall-openprism.ps1")) throw new IOException("A paired app/service package is required.");
+        if (!paths.Contains("WGTun.exe") || !paths.Contains("backend/WGTun.Service.exe") || !paths.Contains("backend/WGTun.Core.dll") || !paths.Contains("backend/WGTun.Tun.exe") || !paths.Contains("install-openprism.ps1") || !paths.Contains("uninstall-openprism.ps1")) throw new IOException("A paired app/service package is required.");
     }
 
     private static void NoLinks(string path)

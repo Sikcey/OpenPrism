@@ -2,9 +2,15 @@
 
 ## Development package
 
-Build with scripts/build-native.ps1. The GUI and backend must stay together. Core setup installs sing-box and the process-capture payload; the chosen ByeDPI or Zapret engine is optional and separate. A compatible official Windows Packet Filter driver, .NET Framework and Visual C++ runtime are prerequisites.
+Build with scripts/build-native.ps1. The GUI and backend must stay together. Core setup installs sing-box and the process-capture payload; the chosen ByeDPI or Zapret engine is optional and separate. The new selective packet ingress uses pinned WinDivert; ProxiFyre and the NDIS Windows Packet Filter prerequisite are no longer installed. UI, broker and WGTun.Tun.exe must be a matched build.
 
-The registered installer is scripts/install-openprism.ps1. Unsigned local packages require its explicit DevelopmentPackage switch. The default destination is the current user's LocalAppData/OpenPrism. It registers a Windows uninstall entry.
+Open the standalone `OpenPrism-Installer.exe`. The wizard verifies the embedded package, prepares the existing WARP account or creates a free account after you accept the Cloudflare terms, and creates rules only for apps you select. Setup uses one administrator approval for the Windows service and all selected components. The default destination is the current user's `%LOCALAPPDATA%\OpenPrism`, and setup registers a Windows uninstall entry. To use an extracted package instead, open `OpenPrism-Setup.exe` for signed releases or `Install.cmd` for unsigned local builds.
+
+## Unsigned preview releases
+
+Download the standalone `OpenPrism-Installer.exe` from GitHub Releases, verify its SHA-256 against the release checksum, and open it directly. The installer contains the application and its matching backend; setup still downloads the pinned networking dependencies and requires one administrator approval. Windows may show an unknown-publisher warning. The embedded package is checked for integrity, but this is not Authenticode publisher verification. Automatic signed updates are not available in this build.
+
+For an extracted unsigned development package, use `Install.cmd`, not `OpenPrism-Setup.exe` directly. The latter defaults to requiring a signed package.
 
 ## Signed releases
 
@@ -18,7 +24,7 @@ No certificate is bundled, and no signed release was produced during this work. 
 
 Optional engines have separate controls. WGTun, sing-box and capture are core components and have no separate removal buttons. Bulk removal stops the owned process tree, unregisters the broker, removes matching owned firewall/WinDivert registrations and recognized files. It does not remove the shared Windows Packet Filter driver or reset system networking.
 
-Windows Settings uninstall invokes the registered uninstaller. The service-host uninstall entry also removes recognized settings, DPAPI files and hash-verified caches. Unknown or modified files are preserved and may need inspection. No restore point is created.
+Open `OpenPrism-Uninstall.exe`, select **Kaldır…** in setup, or uninstall OpenPrism from **Settings → Apps → Installed apps** after installing this package. The native removal wizard displays the registered installation directory and asks for confirmation before removing the service, settings, local WARP credentials and verified application files. Unknown or modified files are preserved. No restore point is created.
 
 ## Validation
 

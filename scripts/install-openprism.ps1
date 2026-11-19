@@ -1,7 +1,7 @@
 [CmdletBinding()]
 param([string]$PackageDirectory = $PSScriptRoot,
       [string]$InstallDirectory = (Join-Path $env:LOCALAPPDATA 'OpenPrism'),
-      [ValidateSet('core','byedpi','zapret')][string]$SelectedComponent = 'core',
+      [ValidateSet('core','byedpi','zapret','byedpi,zapret')][string]$SelectedComponent = 'core',
       [switch]$DevelopmentPackage, [switch]$ValidateOnly, [switch]$Fixture)
 $ErrorActionPreference = 'Stop'
 $TrustedPublisher = '' # Replaced in a signed release.
@@ -39,7 +39,7 @@ foreach ($entry in $manifest.files) {
     Assert-NoLinks $file
     if ((Get-FileHash -Algorithm SHA256 -LiteralPath $file).Hash -ne $entry.sha256) { throw "Package hash mismatch: $relative" }
 }
-foreach ($required in @('WGTun.exe','backend/WGTun.Service.exe','backend/WGTun.Core.dll','uninstall-openprism.ps1')) { if (-not $seen.Contains($required)) { throw "Missing paired payload: $required" } }
+foreach ($required in @('WGTun.exe','backend/WGTun.Service.exe','backend/WGTun.Core.dll','backend/WGTun.Tun.exe','uninstall-openprism.ps1')) { if (-not $seen.Contains($required)) { throw "Missing paired payload: $required" } }
 if ($ValidateOnly) { Write-Output 'Package validated.'; return }
 if ((Test-Path -LiteralPath $install) -and -not (Test-Path -LiteralPath (Join-Path $install 'package-manifest.json'))) { throw 'Unrecognized install directory preserved.' }
 $stage = $install + '-stage-' + [Guid]::NewGuid().ToString('N')
@@ -61,6 +61,11 @@ try {
         $key = 'HKCU:\Software\Microsoft\Windows\CurrentVersion\Uninstall\OpenPrism'
         New-Item -Path $key -Force | Out-Null
         $command = 'powershell.exe -NoProfile -NonInteractive -ExecutionPolicy Bypass -File "{0}" -InstallDirectory "{1}"' -f (Join-Path $install 'uninstall-openprism.ps1'), $install
+        if ($seen.Contains('OpenPrism-Uninstall.exe')) {
+            $command = '"{0}"' -f (Join-Path $install 'OpenPrism-Uninstall.exe')
+        } elseif ($seen.Contains('OpenPrism-Setup.exe')) {
+            $command = ('"{0}" -NoProfile -NonInteractive -WindowStyle Hidden -ExecutionPolicy Bypass -File "{1}" -InstallDirectory "{2}" -Interactive' -f (Join-Path $PSHOME 'powershell.exe'), (Join-Path $install 'uninstall-openprism.ps1'), $install)
+        }
         foreach ($pair in @{DisplayName='OpenPrism'; DisplayVersion=[string]$manifest.version; Publisher='OpenPrism'; InstallLocation=$install; UninstallString=$command; DisplayIcon=(Join-Path $install 'WGTun.exe')}.GetEnumerator()) { New-ItemProperty -Path $key -Name $pair.Key -Value $pair.Value -PropertyType String -Force | Out-Null }
         foreach ($name in @('NoModify','NoRepair')) { New-ItemProperty -Path $key -Name $name -Value 1 -PropertyType DWord -Force | Out-Null }
     }
@@ -68,7 +73,7 @@ try {
     if (Test-Path -LiteralPath $backup) {
         if (Test-Path -LiteralPath $install) { Move-Item -LiteralPath $install -Destination ($install + '-failed-' + [Guid]::NewGuid().ToString('N')) }
         Move-Item -LiteralPath $backup -Destination $install
-        if (-not $Fixture) { & (Join-Path $install 'backend/WGTun.Service.exe') install-service $SelectedComponent | Out-Null }
+        # The failed or declined attempt must not trigger another elevation prompt.
     }
     throw
 }

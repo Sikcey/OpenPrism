@@ -12,7 +12,7 @@ public sealed partial class AppBackend
         if (zapret) zapretEgress ??= ZapretEgress.Detect();
         var root = new Dictionary<string, object>();
         root["log"] = new { level = "warn", timestamp = true };
-        root["inbounds"] = new[] { new { type = "tun", tag = "tun-in", interface_name = "WGTun", address = new[] { "172.28.199.1/30", "fdfe:7767:7475::1/126" }, mtu = 1400, auto_route = true, dns_mode = settings.Scope == TrafficScope.All ? "hijack" : "disabled", strict_route = settings.Scope == TrafficScope.All, stack = "mixed" } };
+        root["inbounds"] = Array.Empty<object>();
         var outbounds = new List<object> { new { type = "direct", tag = "direct" } };
         if (zapret) outbounds[0] = new { type = "direct", tag = "direct", bind_interface = zapretEgress!.Name };
         string dns = "1.1.1.1";
@@ -48,12 +48,14 @@ public sealed partial class AppBackend
         root["outbounds"] = outbounds;
         // Windows DNS is shared across applications. Split modes preserve native DNS;
         // only all-traffic mode installs native DNS hijacking and leak prevention.
-        // WireGuard DNS uses the peer. Default DPI DNS uses DoH; explicit IP overrides use UDP.
+        // WireGuard DNS uses the peer. DPI DNS always uses authenticated DoH.
         var upstream = new Dictionary<string, object> { ["type"] = "udp", ["tag"] = "dns-upstream", ["server"] = dns, ["server_port"] = 53 };
         if (!dpi) upstream["detour"] = "active";
         else if (string.IsNullOrWhiteSpace(settings.ActiveDpi.Dns)) upstream = new() { ["type"] = "https", ["tag"] = "dns-upstream", ["server"] = "1.1.1.1", ["server_port"] = 443, ["tls"] = new { enabled = true, server_name = "cloudflare-dns.com" } };
+        else upstream = new() { ["type"] = "https", ["tag"] = "dns-upstream", ["server"] = dns, ["server_port"] = 443, ["tls"] = new { enabled = true, server_name = dns } };
         var bootstrap = new Dictionary<string, object> { ["type"] = "https", ["tag"] = "dns-bootstrap", ["server"] = "1.1.1.1", ["server_port"] = 443, ["tls"] = new { enabled = true, server_name = "cloudflare-dns.com" } };
-        if (zapret) { upstream["detour"] = "direct"; bootstrap["detour"] = "direct"; }
+        if (dpi) upstream["detour"] = "active";
+        if (zapret) bootstrap["detour"] = "direct";
         root["dns"] = new { servers = new object[] { upstream, bootstrap }, final = "dns-upstream", strategy = "prefer_ipv4" };
         root["route"] = new { rules = CompileSingBoxRules(settings), final = settings.Scope == TrafficScope.SelectedOnly ? "direct" : "active", auto_detect_interface = true, default_domain_resolver = "dns-bootstrap" };
         return JsonSerializer.Serialize(root, new JsonSerializerOptions { WriteIndented = true });
